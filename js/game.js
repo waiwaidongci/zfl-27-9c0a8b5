@@ -33,6 +33,10 @@ const AppGame = (() => {
   let hintUsed = false;
   let levelsEl = null;
   let selectedPiece = null;
+  let keyboardMode = false;
+  let focusedCell = { col: 0, row: 0 };
+  let focusMode = "tray";
+  let focusedTrayIndex = 0;
 
   let onTempExit = null;
   let onLevelsRefresh = null;
@@ -77,6 +81,7 @@ const AppGame = (() => {
   function bindUI() {
     hintBtn.onclick = handleHint;
     resetBtn.onclick = handleReset;
+    document.addEventListener("keydown", handleKeyDown);
   }
 
   function getState() {
@@ -88,7 +93,11 @@ const AppGame = (() => {
       pieces,
       hintUsed,
       timerPaused,
-      selectedPiece
+      selectedPiece,
+      keyboardMode,
+      focusedCell,
+      focusMode,
+      focusedTrayIndex
     };
   }
 
@@ -283,12 +292,17 @@ const AppGame = (() => {
     hintUsed = false;
     pieces = [];
     selectedPiece = null;
+    keyboardMode = false;
+    focusedCell = { col: 0, row: 0 };
+    focusMode = "tray";
+    focusedTrayIndex = 0;
     overlay.classList.add("hidden");
     applyTheme(currentPuzzle.theme);
     AppSettlement.reset();
     AppSettlement.setHintUsed(false);
     AppToolbox.setPuzzleConfig(currentPuzzle);
     AppToolbox.setSelectedPiece(null);
+    clearKeyboardHighlights();
   }
 
   function startTimer() {
@@ -337,6 +351,7 @@ const AppGame = (() => {
 
     const scatterRule = p.scatterRule || "random";
     placePiecesByRule(scatterRule, cellW, cellH);
+    setTimeout(() => updateKeyboardHighlights(), 50);
   }
 
   function placePiecesByRule(rule, cellW, cellH) {
@@ -415,8 +430,12 @@ const AppGame = (() => {
       if (tutorial && tutorial.isActive()) {
         if (!tutorial.isDragAllowed()) return;
       }
+      if (event.pointerType === "touch") {
+        event.preventDefault();
+        document.body.style.touchAction = "none";
+      }
       selectPiece(piece, el);
-      drag = { el, piece, ox: event.offsetX, oy: event.offsetY };
+      drag = { el, piece, ox: event.offsetX, oy: event.offsetY, pointerId: event.pointerId };
       el.setPointerCapture(event.pointerId);
       if (tutorial) tutorial.onDragStart();
     });
@@ -445,6 +464,7 @@ const AppGame = (() => {
   function tryDrop(el, piece) {
     if (!drag) return;
     drag = null;
+    document.body.style.touchAction = "";
     if (el.parentElement !== board) return;
     const p = currentPuzzle;
     const cellW = board.clientWidth / p.cols;
@@ -476,8 +496,14 @@ const AppGame = (() => {
       AppSettlement.incrementErrorAttempts();
       score = Math.max(0, score - 50);
     }
+    if (piece.locked) {
+      selectedPiece = null;
+      focusMode = "tray";
+      focusedTrayIndex = 0;
+    }
     if (isDailyMode) saveDailyState();
     updateHud();
+    updateKeyboardHighlights();
   }
 
   function onToolUsed(toolId, piece) {
@@ -733,6 +759,194 @@ const AppGame = (() => {
     return isDailyMode;
   }
 
+  function activateKeyboardMode() {
+    keyboardMode = true;
+    body.classList.add("keyboard-mode");
+  }
+
+  function clearKeyboardHighlights() {
+    document.querySelectorAll(".piece.keyboard-focused").forEach(el => el.classList.remove("keyboard-focused"));
+    const existingCellFocus = document.querySelector(".keyboard-cell-focus");
+    if (existingCellFocus) existingCellFocus.remove();
+    const existingTrayFocus = document.querySelector(".keyboard-tray-focus");
+    if (existingTrayFocus) existingTrayFocus.remove();
+    if (body) body.classList.remove("keyboard-mode");
+  }
+
+  function updateKeyboardHighlights() {
+    clearKeyboardHighlights();
+    if (!keyboardMode) return;
+    activateKeyboardMode();
+
+    if (focusMode === "tray") {
+      const unlockedPieces = getUnlockedPieces();
+      if (unlockedPieces.length === 0) return;
+      focusedTrayIndex = Math.max(0, Math.min(focusedTrayIndex, unlockedPieces.length - 1));
+      const piece = unlockedPieces[focusedTrayIndex];
+      const el = document.querySelector('.piece[data-id="' + piece.id + '"]');
+      if (el) el.classList.add("keyboard-focused");
+    } else if (focusMode === "board" && selectedPiece) {
+      const p = currentPuzzle;
+      const cellW = board.clientWidth / p.cols;
+      const cellH = board.clientHeight / p.rows;
+      const focusEl = document.createElement("div");
+      focusEl.className = "keyboard-cell-focus";
+      focusEl.style.left = focusedCell.col * cellW + "px";
+      focusEl.style.top = focusedCell.row * cellH + "px";
+      focusEl.style.width = cellW + "px";
+      focusEl.style.height = cellH + "px";
+      board.appendChild(focusEl);
+    }
+  }
+
+  function getUnlockedPieces() {
+    return pieces.filter(p => !p.locked).sort((a, b) => a.id - b.id);
+  }
+
+  function moveFocusTray(direction) {
+    const unlockedPieces = getUnlockedPieces();
+    if (unlockedPieces.length === 0) return;
+    if (direction === "next") {
+      focusedTrayIndex = (focusedTrayIndex + 1) % unlockedPieces.length;
+    } else {
+      focusedTrayIndex = (focusedTrayIndex - 1 + unlockedPieces.length) % unlockedPieces.length;
+    }
+    updateKeyboardHighlights();
+  }
+
+  function moveFocusBoard(dx, dy) {
+    if (!currentPuzzle) return;
+    const newCol = Math.max(0, Math.min(currentPuzzle.cols - 1, focusedCell.col + dx));
+    const newRow = Math.max(0, Math.min(currentPuzzle.rows - 1, focusedCell.row + dy));
+    focusedCell.col = newCol;
+    focusedCell.row = newRow;
+    updateKeyboardHighlights();
+  }
+
+  function selectPieceByKeyboard() {
+    const unlockedPieces = getUnlockedPieces();
+    if (unlockedPieces.length === 0 || focusMode !== "tray") return;
+    focusedTrayIndex = Math.max(0, Math.min(focusedTrayIndex, unlockedPieces.length - 1));
+    const piece = unlockedPieces[focusedTrayIndex];
+    const el = document.querySelector('.piece[data-id="' + piece.id + '"]');
+    if (el) {
+      selectPiece(piece, el);
+      focusMode = "board";
+      if (piece.col !== undefined) {
+        focusedCell.col = piece.col;
+        focusedCell.row = piece.row;
+      }
+      updateKeyboardHighlights();
+    }
+  }
+
+  function confirmPlacePiece() {
+    if (!selectedPiece || focusMode !== "board") return;
+    const el = document.querySelector('.piece[data-id="' + selectedPiece.id + '"]');
+    if (!el) return;
+
+    const p = currentPuzzle;
+    const cellW = board.clientWidth / p.cols;
+    const cellH = board.clientHeight / p.rows;
+    const targetX = focusedCell.col * cellW + 5;
+    const targetY = focusedCell.row * cellH + 5;
+
+    if (el.parentElement !== board) board.appendChild(el);
+    el.style.left = targetX + "px";
+    el.style.top = targetY + "px";
+
+    drag = { el, piece: selectedPiece };
+    tryDrop(el, selectedPiece);
+    updateKeyboardHighlights();
+  }
+
+  function cancelSelection() {
+    selectedPiece = null;
+    document.querySelectorAll(".piece.selected").forEach(p => p.classList.remove("selected"));
+    AppToolbox.setSelectedPiece(null);
+    AppToolbox.render();
+    focusMode = "tray";
+    updateKeyboardHighlights();
+  }
+
+  function handleKeyDown(event) {
+    if (overlay && !overlay.classList.contains("hidden")) return;
+    if (tutorial && tutorial.isActive()) return;
+
+    const key = event.key;
+
+    if (key === "Tab") {
+      event.preventDefault();
+      activateKeyboardMode();
+      if (focusMode === "tray" && !selectedPiece) {
+        moveFocusTray(event.shiftKey ? "prev" : "next");
+      }
+      return;
+    }
+
+    if (!keyboardMode) {
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Enter", "Escape", "r", "R", "e", "E", "f", "F"].includes(key)) {
+        activateKeyboardMode();
+        updateKeyboardHighlights();
+      } else {
+        return;
+      }
+    }
+
+    if (key === "Escape") {
+      event.preventDefault();
+      cancelSelection();
+      return;
+    }
+
+    if (focusMode === "tray" && !selectedPiece) {
+      if (key === "ArrowRight" || key === "ArrowDown") {
+        event.preventDefault();
+        moveFocusTray("next");
+      } else if (key === "ArrowLeft" || key === "ArrowUp") {
+        event.preventDefault();
+        moveFocusTray("prev");
+      } else if (key === " " || key === "Enter") {
+        event.preventDefault();
+        selectPieceByKeyboard();
+      }
+    } else if (focusMode === "board" && selectedPiece) {
+      if (key === "ArrowUp") {
+        event.preventDefault();
+        moveFocusBoard(0, -1);
+      } else if (key === "ArrowDown") {
+        event.preventDefault();
+        moveFocusBoard(0, 1);
+      } else if (key === "ArrowLeft") {
+        event.preventDefault();
+        moveFocusBoard(-1, 0);
+      } else if (key === "ArrowRight") {
+        event.preventDefault();
+        moveFocusBoard(1, 0);
+      } else if (key === " " || key === "Enter") {
+        event.preventDefault();
+        confirmPlacePiece();
+      } else if (key === "r" || key === "R") {
+        event.preventDefault();
+        if (AppToolbox && AppToolbox.useTool) {
+          AppToolbox.useTool("rotateCw");
+        }
+      } else if (key === "e" || key === "E") {
+        event.preventDefault();
+        if (AppToolbox && AppToolbox.useTool) {
+          AppToolbox.useTool("rotateCcw");
+        }
+      } else if (key === "f" || key === "F") {
+        event.preventDefault();
+        if (AppToolbox && AppToolbox.useTool) {
+          AppToolbox.useTool("flip");
+        }
+      }
+    }
+
+    updateKeyboardHighlights();
+  }
+
   return {
     init,
     start,
@@ -745,6 +959,7 @@ const AppGame = (() => {
     updateHud,
     getCurrentIndex,
     getIsDailyMode,
-    onToolUsed
+    onToolUsed,
+    updateKeyboardHighlights
   };
 })();

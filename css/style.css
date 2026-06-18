@@ -1119,3 +1119,268 @@ button:disabled { background: var(--theme-btn-disabled); cursor: not-allowed; op
   }
 }
 
+.piece.keyboard-focused {
+  box-shadow: 0 0 0 3px #3a7653, 0 6px 18px var(--theme-piece-shadow);
+  z-index: 11;
+  animation: keyboard-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes keyboard-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px #3a7653, 0 6px 18px var(--theme-piece-shadow); }
+  50% { box-shadow: 0 0 0 5px #3a7653, 0 6px 18px var(--theme-piece-shadow); }
+}
+
+.keyboard-cell-focus {
+  position: absolute;
+  border: 3px dashed #3a7653;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 5;
+  animation: cell-focus-blink 1s ease-in-out infinite;
+}
+
+@keyframes cell-focus-blink {
+  0%, 100% { opacity: 1; border-color: #3a7653; }
+  50% { opacity: 0.6; border-color: #5a9a73; }
+}
+
+body.keyboard-mode::before {
+  content: '';
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  width: 12px;
+  height: 12px;
+  background: #3a7653;
+  border-radius: 50%;
+  z-index: 1000;
+  box-shadow: 0 0 0 3px rgba(58, 118, 83, 0.3);
+  animation: keyboard-indicator 2s ease-in-out infinite;
+}
+
+@keyframes keyboard-indicator {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+body.keyboard-mode .piece {
+  cursor: pointer;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .piece {
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  
+  .board, .tray {
+    touch-action: pan-y;
+  }
+  
+  .app {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 950px) {
+  .app {
+    grid-template-columns: 1fr;
+    padding: 8px;
+    gap: 8px;
+  }
+  
+  header {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+  
+  header h1 {
+    font-size: 20px;
+  }
+  
+  .header-actions {
+    width: 100%;
+    justify-content: center;
+    margin-top: 8px;
+  }
+  
+  .header-actions button {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  
+  .panel {
+    padding: 10px;
+  }
+  
+  .board {
+    width: 100%;
+    max-width: 500px;
+    border-width: 8px;
+  }
+  
+  .tray {
+    min-height: 180px;
+    max-height: 240px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .toolbox-panel {
+    margin-top: 10px;
+    padding: 8px;
+  }
+  
+  .tool-group {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .tool-btn {
+    padding: 6px 4px;
+  }
+  
+  .tool-icon {
+    font-size: 18px;
+  }
+  
+  .tool-name {
+    font-size: 10px;
+  }
+  
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+    font-size: 12px;
+  }
+  
+  .theme-panel {
+    padding: 8px;
+    margin-top: 10px;
+  }
+  
+  .progress-book {
+    gap: 6px;
+  }
+  
+  .level-card {
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 6px;
+    gap: 6px;
+  }
+  
+  .board {
+    max-width: 100%;
+    border-width: 6px;
+  }
+  
+  .tray {
+    min-height: 160px;
+    max-height: 200px;
+  }
+  
+  .piece {
+    font-size: 14px;
+  }
+  
+  .piece small {
+    font-size: 10px;
+  }
+  
+  .tool-group {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .stats {
+    grid-template-columns: 1fr;
+  }
+  
+  header {
+    padding: 10px 12px;
+  }
+  
+  header h1 {
+    font-size: 18px;
+  }
+  
+  .header-actions button {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  
+  h2 {
+    font-size: 16px;
+  }
+  
+  .modal {
+    padding: 16px;
+  }
+}
+
+.keyboard-hint {
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(45, 32, 20, 0.9);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  z-index: 999;
+  display: none;
+  pointer-events: none;
+}
+
+body.keyboard-mode .keyboard-hint {
+  display: block;
+}
+
+@media (max-width: 950px) {
+  .keyboard-hint {
+    display: none !important;
+  }
+}
+
+.piece {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.25s ease, box-shadow 0.2s ease, left 0.15s ease, top 0.15s ease;
+}
+
+.piece:active {
+  transform: scale(0.98);
+}
+
+.piece.selected {
+  transition: transform 0.25s ease, box-shadow 0.2s ease;
+}
+
+.piece.locked {
+  transition: transform 0.25s ease, box-shadow 0.3s ease;
+}
+
+.piece.wrong-orientation {
+  transition: transform 0.25s ease, box-shadow 0.1s ease;
+}
+
+.keyboard-cell-focus {
+  transition: left 0.15s ease, top 0.15s ease;
+}
+
+@media (pointer: coarse) {
+  .piece {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  button {
+    min-height: 44px;
+  }
+}
+
