@@ -1,5 +1,6 @@
 const App = (() => {
   let lastMainlineIndex = 0;
+  let isLibraryOpen = false;
 
   function init() {
     AppData;
@@ -21,12 +22,13 @@ const App = (() => {
       AppGame.start(index);
     });
     AppProgress.setOnDeleteCustom((id) => {
-      if (!confirm("确定要删除这个自定义残页吗？其进度记录也会一并删除。")) return;
+      if (!confirm("确定要删除这个自定义残页吗？其进度记录和藏书阁记录也会一并删除。")) return;
       const currentPuzzle = AppData.getPuzzleByIndex(AppGame.getCurrentIndex());
       const currentId = currentPuzzle ? currentPuzzle.id : null;
       const deleteIndex = AppData.getPuzzleIndex(id);
       AppData.deleteCustomPuzzle(id);
       AppProgress.handleCustomDeleted(deleteIndex);
+      AppLibrary.deleteEntry(id);
       refreshLevels();
       const newIdx = currentId && currentId !== id
         ? AppData.getPuzzleIndex(currentId)
@@ -80,6 +82,14 @@ const App = (() => {
     });
     AppTutorial.bindUI();
 
+    AppLibrary.setOnExit(() => {
+      handleExitLibrary();
+    });
+
+    AppLibrary.setOnStartPuzzle((puzzleId) => {
+      handleStartFromLibrary(puzzleId);
+    });
+
     const editorEntryBtn = document.querySelector("#editorEntryBtn");
     if (editorEntryBtn) {
       editorEntryBtn.onclick = () => {
@@ -94,6 +104,14 @@ const App = (() => {
       dailyBtn.onclick = () => {
         if (AppTutorial.isActive()) return;
         handleStartDaily();
+      };
+    }
+
+    const libraryBtn = document.querySelector("#libraryEntryBtn");
+    if (libraryBtn) {
+      libraryBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        handleEnterLibrary();
       };
     }
 
@@ -126,6 +144,51 @@ const App = (() => {
 
     AppGame.start(startIdx);
     AppTutorial.maybeAutoStart();
+  }
+
+  function handleStartFromLibrary(puzzleId) {
+    if (!puzzleId) return;
+
+    if (puzzleId.startsWith("daily-")) {
+      const dateStr = puzzleId.replace("daily-", "");
+      if (AppDailyChallenge.isSameDay(dateStr)) {
+        handleStartDaily();
+      } else {
+        alert("该每日残页已过期，只能挑战今日的残页。");
+        handleEnterLibrary();
+      }
+      return;
+    }
+
+    const idx = AppData.getPuzzleIndex(puzzleId);
+    if (idx >= 0) {
+      lastMainlineIndex = idx;
+      AppGame.start(idx);
+    }
+  }
+
+  function handleEnterLibrary() {
+    AppGame.pauseTimer();
+    isLibraryOpen = true;
+    AppLibrary.open();
+    updateLibraryBtnState();
+  }
+
+  function handleExitLibrary() {
+    isLibraryOpen = false;
+    AppLibrary.close();
+    AppGame.resumeTimer();
+    updateLibraryBtnState();
+  }
+
+  function updateLibraryBtnState() {
+    const btn = document.querySelector("#libraryEntryBtn");
+    if (!btn) return;
+    if (isLibraryOpen) {
+      btn.classList.add('is-active');
+    } else {
+      btn.classList.remove('is-active');
+    }
   }
 
   function handleStartDaily(resuming = false) {

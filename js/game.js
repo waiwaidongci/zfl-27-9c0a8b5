@@ -537,6 +537,24 @@ const AppGame = (() => {
     const finalScore = AppSettlement.getFinalScore();
 
     if (isDailyMode) {
+      if (win) {
+        const colophon = AppSettlement.generateColophon();
+        AppLibrary.addOrUpdateEntry(currentPuzzle.id, {
+          name: currentPuzzle.name,
+          text: currentPuzzle.text,
+          theme: currentPuzzle.theme,
+          cols: currentPuzzle.cols,
+          rows: currentPuzzle.rows,
+          bestScore: finalScore,
+          bestTime: usedTime,
+          hintUsed: hintUsed,
+          rating: AppSettlement.getRating(),
+          colophon: colophon,
+          completionDate: Date.now(),
+          daily: true,
+          dailyDate: currentPuzzle.dailyDate
+        });
+      }
       if (onDailyFinish) {
         onDailyFinish({
           win,
@@ -549,17 +567,32 @@ const AppGame = (() => {
       const prev = progress.getProgressAt(currentIndex);
       const newBestScore = Math.max(prev.bestScore, finalScore);
       const newBestTime = (prev.bestTime === null || usedTime < prev.bestTime) ? usedTime : prev.bestTime;
+      const colophon = AppSettlement.generateColophon();
       progress.updateProgress(currentIndex, {
         completed: true,
         bestScore: newBestScore,
         bestTime: newBestTime,
         hintUsed: prev.hintUsed || hintUsed,
-        unlocked: true
+        unlocked: true,
+        colophon: colophon
       });
       const allPuzzles = AppData.getAllPuzzles();
       if (currentIndex + 1 < allPuzzles.length) {
         progress.unlockNext(currentIndex);
       }
+      AppLibrary.addOrUpdateEntry(currentPuzzle.id, {
+        name: currentPuzzle.name,
+        text: currentPuzzle.text,
+        theme: currentPuzzle.theme,
+        cols: currentPuzzle.cols,
+        rows: currentPuzzle.rows,
+        bestScore: newBestScore,
+        bestTime: newBestTime,
+        hintUsed: prev.hintUsed || hintUsed,
+        rating: AppSettlement.getRating(),
+        colophon: colophon,
+        completionDate: Date.now()
+      });
     }
 
     if (onLevelsRefresh && !isTempMode && !isDailyMode) onLevelsRefresh();

@@ -11,6 +11,7 @@
     <div><h1>古籍修补台</h1><div>拖拽纸片归位，沿字列和边缘修复残页。</div></div>
     <div class="header-actions">
       <button id="dailyChallengeBtn" class="daily-entry-btn">每日残页挑战</button>
+      <button id="libraryEntryBtn" class="library-entry-btn">藏书阁</button>
       <button id="editorEntryBtn" class="editor-entry-btn">残页编辑器</button>
       <button id="tutorialEntryBtn" class="tutorial-entry-btn">新手引导</button>
       <button id="resetBtn">重开本关</button>
@@ -60,6 +61,10 @@
     <div id="editorContainer"></div>
   </div>
 
+  <div class="library-view" id="libraryView">
+    <div id="libraryContainer"></div>
+  </div>
+
   <div class="overlay hidden" id="overlay">
     <div class="modal">
       <h2 id="modalTitle">修补完成</h2>
@@ -88,6 +93,7 @@
   <script src="js/pieceState.js?v=20260618c"></script>
   <script src="js/toolbox.js?v=20260618c"></script>
   <script src="js/settlement.js?v=20260618c"></script>
+  <script src="js/library.js?v=20260619"></script>
   <script src="js/tutorial.js?v=20260618c"></script>
   <script src="js/game.js?v=20260618c"></script>
   <script src="js/editor.js?v=20260618c"></script>

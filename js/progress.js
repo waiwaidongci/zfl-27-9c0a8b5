@@ -41,7 +41,8 @@ const AppProgress = (() => {
       bestScore: 0,
       bestTime: null,
       hintUsed: false,
-      unlocked: index === 0
+      unlocked: index === 0,
+      colophon: ""
     };
   }
 

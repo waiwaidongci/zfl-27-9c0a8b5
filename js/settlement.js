@@ -202,6 +202,11 @@ const AppSettlement = (() => {
     };
   }
 
+  function generateColophon() {
+    if (!win) return "";
+    return AppLibrary.generateColophon(rating, hintUsed, usedTime);
+  }
+
   return {
     reset,
     incrementErrorAttempts,
@@ -214,6 +219,7 @@ const AppSettlement = (() => {
     getFinalScore,
     getToolUsageDetails,
     renderResult,
-    getStats
+    getStats,
+    generateColophon
   };
 })();
