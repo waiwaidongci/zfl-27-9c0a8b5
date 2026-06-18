@@ -11,7 +11,12 @@ const AppEditor = (() => {
     theme: { paper: "xuanzhi", ink: "mohei", border: "none", table: "wood" },
     timeLimit: 120,
     hintPenalty: 80,
-    scatterRule: "random"
+    scatterRule: "random",
+    enableRotation: false,
+    enableFlip: false,
+    initialRotationScrambled: false,
+    initialFlipScrambled: false,
+    availableTools: ["zoom", "edgeAlign"]
   };
 
   const previewRef = { board: null };
@@ -46,7 +51,12 @@ const AppEditor = (() => {
       theme: { paper: "xuanzhi", ink: "mohei", border: "none", table: "wood" },
       timeLimit: 120,
       hintPenalty: 80,
-      scatterRule: "random"
+      scatterRule: "random",
+      enableRotation: false,
+      enableFlip: false,
+      initialRotationScrambled: false,
+      initialFlipScrambled: false,
+      availableTools: ["zoom", "edgeAlign"]
     };
   }
 
@@ -69,7 +79,12 @@ const AppEditor = (() => {
       theme: { ...editorState.theme },
       timeLimit: editorState.timeLimit,
       hintPenalty: editorState.hintPenalty,
-      scatterRule: editorState.scatterRule
+      scatterRule: editorState.scatterRule,
+      enableRotation: editorState.enableRotation,
+      enableFlip: editorState.enableFlip,
+      initialRotationScrambled: editorState.initialRotationScrambled,
+      initialFlipScrambled: editorState.initialFlipScrambled,
+      availableTools: [...editorState.availableTools]
     };
   }
 
@@ -204,6 +219,46 @@ const AppEditor = (() => {
           </div>
 
           <div class="editor-section" style="margin-top:16px">
+            <h2>残片方向设置</h2>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="editorEnableRotation" ${editorState.enableRotation ? "checked" : ""}>
+                <span>启用旋转判定</span>
+              </label>
+              <div class="hint">启用后，残片需要旋转到正确方向才算归位</div>
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="editorInitialRotationScrambled" ${editorState.initialRotationScrambled ? "checked" : ""}>
+                <span>初始方向打乱</span>
+              </label>
+              <div class="hint">游戏开始时残片方向随机</div>
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="editorEnableFlip" ${editorState.enableFlip ? "checked" : ""}>
+                <span>启用翻面判定</span>
+              </label>
+              <div class="hint">启用后，残片需要正面朝上才算归位</div>
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="editorInitialFlipScrambled" ${editorState.initialFlipScrambled ? "checked" : ""}>
+                <span>初始翻面打乱</span>
+              </label>
+              <div class="hint">游戏开始时部分残片背面朝上</div>
+            </div>
+          </div>
+
+          <div class="editor-section" style="margin-top:16px">
+            <h2>可用工具箱</h2>
+            <div class="tool-picker" id="toolPicker">
+              ${renderToolPicker()}
+            </div>
+            <div class="hint" style="margin-top:8px;color:var(--theme-text-muted);font-size:12px">选择本关可以使用的修补工具</div>
+          </div>
+
+          <div class="editor-section" style="margin-top:16px">
             <h2>实时预览</h2>
             <div id="previewContainer" style="padding:4px">
               ${renderPreviewBoard()}
@@ -269,6 +324,29 @@ const AppEditor = (() => {
         </label>
       </div>`;
     });
+    return html;
+  }
+
+  function renderToolPicker() {
+    const tools = [
+      { id: "rotateCw", name: "顺时针旋转", icon: "↻", category: "transform" },
+      { id: "rotateCcw", name: "逆时针旋转", icon: "↺", category: "transform" },
+      { id: "flip", name: "水平翻面", icon: "⇋", category: "transform" },
+      { id: "zoom", name: "放大观察", icon: "🔍", category: "view" },
+      { id: "edgeAlign", name: "边缘对齐", icon: "▦", category: "assist" }
+    ];
+    let html = '<div class="tool-picker-grid">';
+    tools.forEach(tool => {
+      const isChecked = editorState.availableTools.includes(tool.id);
+      html += `
+        <label class="tool-picker-item ${isChecked ? "active" : ""}">
+          <input type="checkbox" data-tool="${tool.id}" ${isChecked ? "checked" : ""}>
+          <span class="tool-picker-icon">${tool.icon}</span>
+          <span class="tool-picker-name">${tool.name}</span>
+        </label>
+      `;
+    });
+    html += '</div>';
     return html;
   }
 
@@ -402,6 +480,8 @@ const AppEditor = (() => {
     bindTextGridEvents();
     bindThemePickerEvents();
     bindScatterEvents();
+    bindOrientationEvents();
+    bindToolPickerEvents();
 
     const saveBtn = document.querySelector("#editorSaveBtn");
     const previewBtn = document.querySelector("#editorPreviewBtn");
@@ -444,6 +524,83 @@ const AppEditor = (() => {
         editorState.scatterRule = input.value;
         refreshScatterPicker();
         applyPreviewTheme();
+      };
+    });
+  }
+
+  function bindOrientationEvents() {
+    const enableRotation = document.querySelector("#editorEnableRotation");
+    if (enableRotation) {
+      enableRotation.onchange = () => {
+        editorState.enableRotation = enableRotation.checked;
+        if (!editorState.enableRotation) {
+          editorState.initialRotationScrambled = false;
+          refreshOrientationUI();
+        }
+      };
+    }
+    const initialRotationScrambled = document.querySelector("#editorInitialRotationScrambled");
+    if (initialRotationScrambled) {
+      initialRotationScrambled.onchange = () => {
+        editorState.initialRotationScrambled = initialRotationScrambled.checked;
+        if (editorState.initialRotationScrambled) {
+          editorState.enableRotation = true;
+          const rotCheck = document.querySelector("#editorEnableRotation");
+          if (rotCheck) rotCheck.checked = true;
+        }
+      };
+    }
+    const enableFlip = document.querySelector("#editorEnableFlip");
+    if (enableFlip) {
+      enableFlip.onchange = () => {
+        editorState.enableFlip = enableFlip.checked;
+        if (!editorState.enableFlip) {
+          editorState.initialFlipScrambled = false;
+          refreshOrientationUI();
+        }
+      };
+    }
+    const initialFlipScrambled = document.querySelector("#editorInitialFlipScrambled");
+    if (initialFlipScrambled) {
+      initialFlipScrambled.onchange = () => {
+        editorState.initialFlipScrambled = initialFlipScrambled.checked;
+        if (editorState.initialFlipScrambled) {
+          editorState.enableFlip = true;
+          const flipCheck = document.querySelector("#editorEnableFlip");
+          if (flipCheck) flipCheck.checked = true;
+        }
+      };
+    }
+  }
+
+  function refreshOrientationUI() {
+    const rotCheck = document.querySelector("#editorEnableRotation");
+    const initRotCheck = document.querySelector("#editorInitialRotationScrambled");
+    const flipCheck = document.querySelector("#editorEnableFlip");
+    const initFlipCheck = document.querySelector("#editorInitialFlipScrambled");
+    if (rotCheck) rotCheck.checked = editorState.enableRotation;
+    if (initRotCheck) initRotCheck.checked = editorState.initialRotationScrambled;
+    if (flipCheck) flipCheck.checked = editorState.enableFlip;
+    if (initFlipCheck) initFlipCheck.checked = editorState.initialFlipScrambled;
+  }
+
+  function bindToolPickerEvents() {
+    const toolPicker = document.querySelector("#toolPicker");
+    if (!toolPicker) return;
+    toolPicker.querySelectorAll('input[type="checkbox"]').forEach(input => {
+      input.onchange = () => {
+        const toolId = input.dataset.tool;
+        if (input.checked) {
+          if (!editorState.availableTools.includes(toolId)) {
+            editorState.availableTools.push(toolId);
+          }
+        } else {
+          editorState.availableTools = editorState.availableTools.filter(t => t !== toolId);
+        }
+        const item = input.closest(".tool-picker-item");
+        if (item) {
+          item.classList.toggle("active", input.checked);
+        }
       };
     });
   }

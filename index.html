@@ -27,6 +27,7 @@
           <div>当前分数：<b id="scoreText">0</b></div>
           <div>剩余时间：<b id="timeText">120</b>秒</div>
           <div>本页最佳得分：<b id="bestText">0</b></div>
+          <div>错误尝试：<b id="errorText">0</b>次</div>
         </div>
         <div class="theme-panel">
           <h3>当前主题</h3>
@@ -39,6 +40,7 @@
         </div>
         <p style="margin-top:12px">纸片靠近正确格子会自动吸附。提示会高亮一个尚未归位的格子（使用提示会扣分）。</p>
         <button id="hintBtn" class="secondary">使用提示</button>
+        <div class="toolbox-panel" id="toolboxContainer"></div>
       </aside>
       <section class="panel">
         <h2>残页</h2>
@@ -79,6 +81,9 @@
 
   <script src="js/data.js"></script>
   <script src="js/progress.js"></script>
+  <script src="js/pieceState.js"></script>
+  <script src="js/toolbox.js"></script>
+  <script src="js/settlement.js"></script>
   <script src="js/tutorial.js"></script>
   <script src="js/game.js"></script>
   <script src="js/editor.js"></script>

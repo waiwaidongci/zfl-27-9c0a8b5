@@ -10,6 +10,7 @@ const AppGame = (() => {
   let timeText = null;
   let levelText = null;
   let bestText = null;
+  let errorText = null;
   let paperText = null;
   let inkText = null;
   let borderText = null;
@@ -30,9 +31,9 @@ const AppGame = (() => {
   let drag = null;
   let hintUsed = false;
   let levelsEl = null;
+  let selectedPiece = null;
 
   let onTempExit = null;
-
   let onLevelsRefresh = null;
   let tutorial = null;
   let progress = null;
@@ -57,6 +58,7 @@ const AppGame = (() => {
     timeText = document.querySelector("#timeText");
     levelText = document.querySelector("#levelText");
     bestText = document.querySelector("#bestText");
+    errorText = document.querySelector("#errorText");
     paperText = document.querySelector("#paperText");
     inkText = document.querySelector("#inkText");
     borderText = document.querySelector("#borderText");
@@ -79,7 +81,8 @@ const AppGame = (() => {
       totalTime,
       pieces,
       hintUsed,
-      timerPaused
+      timerPaused,
+      selectedPiece
     };
   }
 
@@ -123,26 +126,10 @@ const AppGame = (() => {
     currentIndex = index;
     isTempMode = false;
     currentPuzzle = AppData.getPuzzleByIndex(index);
-    score = 1000;
-    totalTime = currentPuzzle.timeLimit || 120;
-    time = totalTime;
-    hintUsed = false;
-    pieces = [];
-    overlay.classList.add("hidden");
-    applyTheme(currentPuzzle.theme);
-
+    initGameState();
     if (onLevelsRefresh) onLevelsRefresh();
     renderPuzzle();
-
-    clearInterval(timer);
-    timerPaused = false;
-    timer = setInterval(() => {
-      if (timerPaused) return;
-      time -= 1;
-      score = Math.max(0, score - 1);
-      updateHud();
-      if (time <= 0) finish(false);
-    }, 1000);
+    startTimer();
     updateHud();
   }
 
@@ -150,17 +137,29 @@ const AppGame = (() => {
     currentIndex = -1;
     isTempMode = true;
     currentPuzzle = { ...puzzle, id: "temp", custom: true };
+    initGameState();
+    if (onLevelsRefresh) onLevelsRefresh();
+    renderPuzzle();
+    startTimer();
+    updateHud();
+  }
+
+  function initGameState() {
     score = 1000;
     totalTime = currentPuzzle.timeLimit || 120;
     time = totalTime;
     hintUsed = false;
     pieces = [];
+    selectedPiece = null;
     overlay.classList.add("hidden");
     applyTheme(currentPuzzle.theme);
+    AppSettlement.reset();
+    AppSettlement.setHintUsed(false);
+    AppToolbox.setPuzzleConfig(currentPuzzle);
+    AppToolbox.setSelectedPiece(null);
+  }
 
-    if (onLevelsRefresh) onLevelsRefresh();
-    renderPuzzle();
-
+  function startTimer() {
     clearInterval(timer);
     timerPaused = false;
     timer = setInterval(() => {
@@ -170,7 +169,6 @@ const AppGame = (() => {
       updateHud();
       if (time <= 0) finish(false);
     }, 1000);
-    updateHud();
   }
 
   function pauseTimer() {
@@ -200,7 +198,9 @@ const AppGame = (() => {
     p.text.forEach((label, i) => {
       const col = i % p.cols;
       const row = Math.floor(i / p.cols);
-      pieces.push({ id: i, label, col, row, locked: false });
+      const piece = AppPieceState.createPieceState(i, { label, col, row });
+      AppPieceState.randomizeOrientation(piece, currentPuzzle);
+      pieces.push(piece);
     });
 
     const scatterRule = p.scatterRule || "random";
@@ -276,11 +276,14 @@ const AppGame = (() => {
     el.innerHTML = piece.label + "<small>残片"+(piece.id+1)+"</small>";
     tray.appendChild(el);
 
+    AppPieceState.applyTransformToElement(el, piece);
+
     el.addEventListener("pointerdown", event => {
       if (piece.locked) return;
       if (tutorial && tutorial.isActive()) {
         if (!tutorial.isDragAllowed()) return;
       }
+      selectPiece(piece, el);
       drag = { el, piece, ox: event.offsetX, oy: event.offsetY };
       el.setPointerCapture(event.pointerId);
       if (tutorial) tutorial.onDragStart();
@@ -299,6 +302,14 @@ const AppGame = (() => {
     el.addEventListener("pointerup", () => tryDrop(el, piece));
   }
 
+  function selectPiece(piece, el) {
+    document.querySelectorAll(".piece.selected").forEach(p => p.classList.remove("selected"));
+    selectedPiece = piece;
+    if (el) el.classList.add("selected");
+    AppToolbox.setSelectedPiece(piece);
+    AppToolbox.render();
+  }
+
   function tryDrop(el, piece) {
     if (!drag) return;
     drag = null;
@@ -311,29 +322,88 @@ const AppGame = (() => {
     const x = parseFloat(el.style.left);
     const y = parseFloat(el.style.top);
     if (Math.abs(x - targetX) < 42 && Math.abs(y - targetY) < 42) {
-      el.style.left = targetX + "px";
-      el.style.top = targetY + "px";
-      el.classList.add("locked");
-      piece.locked = true;
-      score += 80;
-      if (tutorial) tutorial.onFirstDrop();
-      if (pieces.every(item => item.locked)) {
-        if (tutorial) tutorial.onWin();
-        finish(true);
+      const orientationCorrect = AppPieceState.isOrientationCorrect(piece, currentPuzzle);
+      if (orientationCorrect) {
+        el.style.left = targetX + "px";
+        el.style.top = targetY + "px";
+        el.classList.add("locked");
+        piece.locked = true;
+        score += 80;
+        if (tutorial) tutorial.onFirstDrop();
+        if (pieces.every(item => item.locked)) {
+          if (tutorial) tutorial.onWin();
+          finish(true);
+        }
+      } else {
+        AppSettlement.incrementErrorAttempts();
+        score = Math.max(0, score - 50);
+        el.classList.add("wrong-orientation");
+        setTimeout(() => el.classList.remove("wrong-orientation"), 500);
       }
     } else {
+      AppSettlement.incrementErrorAttempts();
       score = Math.max(0, score - 50);
     }
     updateHud();
+  }
+
+  function onToolUsed(toolId, piece) {
+    if (piece) {
+      const el = document.querySelector('.piece[data-id="' + piece.id + '"]');
+      if (el) {
+        AppPieceState.applyTransformToElement(el, piece);
+      }
+      if (el && el.parentElement === board && !piece.locked) {
+        const p = currentPuzzle;
+        const cellW = board.clientWidth / p.cols;
+        const cellH = board.clientHeight / p.rows;
+        const targetX = piece.col * cellW + 5;
+        const targetY = piece.row * cellH + 5;
+        const x = parseFloat(el.style.left);
+        const y = parseFloat(el.style.top);
+        if (Math.abs(x - targetX) < 42 && Math.abs(y - targetY) < 42) {
+          const orientationCorrect = AppPieceState.isOrientationCorrect(piece, currentPuzzle);
+          if (orientationCorrect) {
+            el.style.left = targetX + "px";
+            el.style.top = targetY + "px";
+            el.classList.add("locked");
+            piece.locked = true;
+            score += 80;
+            if (pieces.every(item => item.locked)) {
+              finish(true);
+            }
+            updateHud();
+          }
+        }
+      }
+    }
+    AppSettlement.setToolUsage(AppToolbox.getUsage());
   }
 
   function finish(win) {
     clearInterval(timer);
     const usedTime = totalTime - time;
 
+    AppSettlement.setWin(win);
+    AppSettlement.setToolUsage(AppToolbox.getUsage());
+    AppSettlement.setHintUsed(hintUsed);
+
+    AppSettlement.computeScore({
+      baseScore: score,
+      timeRemaining: time,
+      timeLimit: totalTime,
+      pieceCount: pieces.length,
+      lockedCount: pieces.filter(p => p.locked).length,
+      errorPenalty: 50,
+      toolPenalty: 10,
+      hintPenalty: currentPuzzle.hintPenalty || 80
+    });
+
+    const finalScore = AppSettlement.getFinalScore();
+
     if (win && progress && !isTempMode) {
       const prev = progress.getProgressAt(currentIndex);
-      const newBestScore = Math.max(prev.bestScore, score);
+      const newBestScore = Math.max(prev.bestScore, finalScore);
       const newBestTime = (prev.bestTime === null || usedTime < prev.bestTime) ? usedTime : prev.bestTime;
       progress.updateProgress(currentIndex, {
         completed: true,
@@ -351,32 +421,16 @@ const AppGame = (() => {
     if (onLevelsRefresh && !isTempMode) onLevelsRefresh();
     updateHud();
 
-    modalTitle.textContent = win ? (isTempMode ? "🎉 试玩完成" : "🎉 残页修补完成") : "⏰ 时间耗尽";
+    modalTitle.style.display = "none";
 
-    let rows = '<div class="result-row"><span>本页得分</span><span>' + score + '</span></div>';
-    if (win) {
-      rows += '<div class="result-row"><span>用时</span><span>' + usedTime + '秒</span></div>';
-      rows += '<div class="result-row"><span>使用提示</span><span>' + (hintUsed ? '是' : '否') + '</span></div>';
-      if (progress && !isTempMode) {
-        const p = progress.getProgressAt(currentIndex);
-        rows += '<div class="result-row"><span>历史最佳得分</span><span>' + p.bestScore + '</span></div>';
-        rows += '<div class="result-row"><span>历史最快用时</span><span>' + (p.bestTime !== null ? p.bestTime + '秒' : '-') + '</span></div>';
-      }
-      if (!isTempMode) {
-        const allPuzzles = AppData.getAllPuzzles();
-        if (currentIndex + 1 < allPuzzles.length) {
-          rows += '<div class="result-row" style="color:#3a7653"><span>下一页解锁</span><span>✓</span></div>';
-        }
-      } else {
-        rows += '<div class="result-row"><span>模式</span><span>试玩（不记录进度）</span></div>';
-      }
-    } else {
-      rows += '<div class="result-row"><span>使用提示</span><span>' + (hintUsed ? '是' : '否') + '</span></div>';
-      if (isTempMode) {
-        rows += '<div class="result-row"><span>模式</span><span>试玩（不记录进度）</span></div>';
-      }
-    }
-    modalResult.innerHTML = rows;
+    AppSettlement.renderResult(modalResult, {
+      score: finalScore,
+      usedTime,
+      totalTime,
+      hintUsed,
+      win,
+      puzzleName: currentPuzzle.name
+    });
 
     if (isTempMode) {
       nextBtn.textContent = "返回编辑器";
@@ -407,6 +461,7 @@ const AppGame = (() => {
     levelText.textContent = puzzle ? puzzle.name : (currentIndex + 1);
     scoreText.textContent = score;
     timeText.textContent = time;
+    if (errorText) errorText.textContent = AppSettlement.getErrorAttempts();
     if (progress && !isTempMode) {
       const p = progress.getProgressAt(currentIndex);
       bestText.textContent = p ? (p.bestScore || 0) : 0;
@@ -430,6 +485,7 @@ const AppGame = (() => {
     const piece = pieces.find(item => !item.locked);
     if (!piece) return;
     hintUsed = true;
+    AppSettlement.setHintUsed(true);
     if (tutorial) tutorial.onHint();
     const puzzle = currentPuzzle;
     const theme = puzzle.theme;
@@ -470,6 +526,7 @@ const AppGame = (() => {
     setDependencies(deps);
     cacheElements();
     bindUI();
+    AppToolbox.init({ game: { onToolUsed } });
   }
 
   return {
@@ -481,6 +538,7 @@ const AppGame = (() => {
     getState,
     setState,
     updateHud,
-    getCurrentIndex
+    getCurrentIndex,
+    onToolUsed
   };
 })();

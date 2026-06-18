@@ -58,7 +58,12 @@ const AppData = (() => {
       theme: { paper: "xuanzhi", ink: "mohei", border: "none", table: "wood" },
       timeLimit: 120,
       hintPenalty: 80,
-      scatterRule: "random"
+      scatterRule: "random",
+      enableRotation: false,
+      enableFlip: false,
+      initialRotationScrambled: false,
+      initialFlipScrambled: false,
+      availableTools: ["zoom", "edgeAlign"]
     },
     {
       id: "builtin-2",
@@ -67,9 +72,14 @@ const AppData = (() => {
       cols: 4, rows: 2,
       text: ["竹简","秋水","石桥","远钟","青灯","薄纸","行书","残印"],
       theme: { paper: "mazhi", ink: "zhuhong", border: "torn", table: "stone" },
-      timeLimit: 112,
+      timeLimit: 130,
       hintPenalty: 80,
-      scatterRule: "random"
+      scatterRule: "random",
+      enableRotation: true,
+      enableFlip: false,
+      initialRotationScrambled: true,
+      initialFlipScrambled: false,
+      availableTools: ["rotateCw", "rotateCcw", "zoom", "edgeAlign"]
     },
     {
       id: "builtin-3",
@@ -78,9 +88,14 @@ const AppData = (() => {
       cols: 3, rows: 3,
       text: ["云根","药谱","温火","井泉","纸背","朱批","草堂","夜读","藏印"],
       theme: { paper: "juanzhi", ink: "zangqing", border: "frayed", table: "silk" },
-      timeLimit: 104,
+      timeLimit: 140,
       hintPenalty: 80,
-      scatterRule: "random"
+      scatterRule: "random",
+      enableRotation: true,
+      enableFlip: true,
+      initialRotationScrambled: true,
+      initialFlipScrambled: true,
+      availableTools: ["rotateCw", "rotateCcw", "flip", "zoom", "edgeAlign"]
     },
     {
       id: "builtin-4",
@@ -89,9 +104,14 @@ const AppData = (() => {
       cols: 4, rows: 3,
       text: ["海棠","卷首","虫蛀","补纸","墨脉","断栏","夹注","边款","残页","古香","修痕","归档"],
       theme: { paper: "caizhi", ink: "tanxiang", border: "chipped", table: "bamboo" },
-      timeLimit: 96,
+      timeLimit: 150,
       hintPenalty: 80,
-      scatterRule: "random"
+      scatterRule: "random",
+      enableRotation: true,
+      enableFlip: true,
+      initialRotationScrambled: true,
+      initialFlipScrambled: true,
+      availableTools: ["rotateCw", "rotateCcw", "flip", "zoom", "edgeAlign"]
     },
     {
       id: "builtin-5",
@@ -100,9 +120,14 @@ const AppData = (() => {
       cols: 5, rows: 3,
       text: ["金石","拓痕","旧题","飞白","鱼尾","牌记","小篆","暗纹","碑阴","残角","书林","校勘","虫孔","云笺","收束"],
       theme: { paper: "baizhi", ink: "dai", border: "irregular", table: "lacquer" },
-      timeLimit: 88,
+      timeLimit: 180,
       hintPenalty: 80,
-      scatterRule: "random"
+      scatterRule: "random",
+      enableRotation: true,
+      enableFlip: true,
+      initialRotationScrambled: true,
+      initialFlipScrambled: true,
+      availableTools: ["rotateCw", "rotateCcw", "flip", "zoom", "edgeAlign"]
     }
   ];
 
