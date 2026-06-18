@@ -8,16 +8,21 @@ const App = (() => {
       AppGame.start(index);
     });
     AppProgress.setOnDeleteCustom((id) => {
-      if (confirm("确定要删除这个自定义残页吗？其进度记录也会一并删除。")) {
-        AppData.deleteCustomPuzzle(id);
-        AppProgress.handleCustomDeleted(id);
-        refreshLevels();
+      if (!confirm("确定要删除这个自定义残页吗？其进度记录也会一并删除。")) return;
+      const currentPuzzle = AppData.getPuzzleByIndex(AppGame.getCurrentIndex());
+      const currentId = currentPuzzle ? currentPuzzle.id : null;
+      const deleteIndex = AppData.getPuzzleIndex(id);
+      AppData.deleteCustomPuzzle(id);
+      AppProgress.handleCustomDeleted(deleteIndex);
+      refreshLevels();
+      const newIdx = currentId && currentId !== id
+        ? AppData.getPuzzleIndex(currentId)
+        : -1;
+      if (newIdx >= 0) {
+        AppGame.start(newIdx);
+      } else {
         const startIdx = AppProgress.findStartIndex();
-        if (AppGame.getCurrentIndex() !== startIdx) {
-          AppGame.start(startIdx);
-        } else {
-          refreshLevels();
-        }
+        AppGame.start(startIdx);
       }
     });
     AppEditor.setCallbacks({
@@ -39,25 +44,19 @@ const App = (() => {
         refreshLevels();
       },
       onStartPreview: (puzzle) => {
-        const saved = AppData.addCustomPuzzle(puzzle);
-        AppProgress.ensureProgressSize();
-        const allPuzzles = AppData.getAllPuzzles();
-        const idx = allPuzzles.findIndex(p => p.id === saved.id);
-        if (idx >= 0) {
-          AppProgress.updateProgress(idx, { unlocked: true });
-        }
-        refreshLevels();
         AppEditor.close();
         setTimeout(() => {
-          const newIdx = AppData.getAllPuzzles().findIndex(p => p.id === saved.id);
-          if (newIdx >= 0) AppGame.start(newIdx);
+          AppGame.startTemp(puzzle);
         }, 50);
       }
     });
     AppGame.init({
       tutorial: AppTutorial,
       progress: AppProgress,
-      onLevelsRefresh: refreshLevels
+      onLevelsRefresh: refreshLevels,
+      onTempExit: () => {
+        AppEditor.open();
+      }
     });
     AppTutorial.bindUI();
     const editorEntryBtn = document.querySelector("#editorEntryBtn");

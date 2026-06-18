@@ -19,6 +19,8 @@ const AppGame = (() => {
   let resetBtn = null;
 
   let currentIndex = 0;
+  let currentPuzzle = null;
+  let isTempMode = false;
   let score = 0;
   let time = 0;
   let totalTime = 0;
@@ -29,6 +31,8 @@ const AppGame = (() => {
   let hintUsed = false;
   let levelsEl = null;
 
+  let onTempExit = null;
+
   let onLevelsRefresh = null;
   let tutorial = null;
   let progress = null;
@@ -37,6 +41,7 @@ const AppGame = (() => {
     if (deps.tutorial) tutorial = deps.tutorial;
     if (deps.progress) progress = deps.progress;
     if (deps.onLevelsRefresh) onLevelsRefresh = deps.onLevelsRefresh;
+    if (deps.onTempExit) onTempExit = deps.onTempExit;
   }
 
   function cacheElements() {
@@ -116,15 +121,42 @@ const AppGame = (() => {
       if (!p || !p.unlocked) return;
     }
     currentIndex = index;
+    isTempMode = false;
+    currentPuzzle = AppData.getPuzzleByIndex(index);
     score = 1000;
-
-    const puzzle = AppData.getPuzzleByIndex(index);
-    totalTime = puzzle.timeLimit || 120;
+    totalTime = currentPuzzle.timeLimit || 120;
     time = totalTime;
     hintUsed = false;
     pieces = [];
     overlay.classList.add("hidden");
-    applyTheme(puzzle.theme);
+    applyTheme(currentPuzzle.theme);
+
+    if (onLevelsRefresh) onLevelsRefresh();
+    renderPuzzle();
+
+    clearInterval(timer);
+    timerPaused = false;
+    timer = setInterval(() => {
+      if (timerPaused) return;
+      time -= 1;
+      score = Math.max(0, score - 1);
+      updateHud();
+      if (time <= 0) finish(false);
+    }, 1000);
+    updateHud();
+  }
+
+  function startTemp(puzzle) {
+    currentIndex = -1;
+    isTempMode = true;
+    currentPuzzle = { ...puzzle, id: "temp", custom: true };
+    score = 1000;
+    totalTime = currentPuzzle.timeLimit || 120;
+    time = totalTime;
+    hintUsed = false;
+    pieces = [];
+    overlay.classList.add("hidden");
+    applyTheme(currentPuzzle.theme);
 
     if (onLevelsRefresh) onLevelsRefresh();
     renderPuzzle();
@@ -152,7 +184,7 @@ const AppGame = (() => {
   function renderPuzzle() {
     board.innerHTML = "";
     tray.innerHTML = "";
-    const p = AppData.getPuzzleByIndex(currentIndex);
+    const p = currentPuzzle;
     const cellW = board.clientWidth / p.cols;
     const cellH = board.clientHeight / p.rows;
 
@@ -206,7 +238,7 @@ const AppGame = (() => {
 
   function createPiece(piece, i, cellW, cellH, mode = "random", clusterRow = 0) {
     const el = document.createElement("div");
-    const puzzle = AppData.getPuzzleByIndex(currentIndex);
+    const puzzle = currentPuzzle;
     const theme = puzzle.theme;
     const paperClass = AppData.themes.paper[theme.paper].class;
     const inkClass = AppData.themes.ink[theme.ink].class;
@@ -271,7 +303,7 @@ const AppGame = (() => {
     if (!drag) return;
     drag = null;
     if (el.parentElement !== board) return;
-    const p = AppData.getPuzzleByIndex(currentIndex);
+    const p = currentPuzzle;
     const cellW = board.clientWidth / p.cols;
     const cellH = board.clientHeight / p.rows;
     const targetX = piece.col * cellW + 5;
@@ -299,7 +331,7 @@ const AppGame = (() => {
     clearInterval(timer);
     const usedTime = totalTime - time;
 
-    if (win && progress) {
+    if (win && progress && !isTempMode) {
       const prev = progress.getProgressAt(currentIndex);
       const newBestScore = Math.max(prev.bestScore, score);
       const newBestTime = (prev.bestTime === null || usedTime < prev.bestTime) ? usedTime : prev.bestTime;
@@ -316,52 +348,70 @@ const AppGame = (() => {
       }
     }
 
-    if (onLevelsRefresh) onLevelsRefresh();
+    if (onLevelsRefresh && !isTempMode) onLevelsRefresh();
     updateHud();
 
-    modalTitle.textContent = win ? "🎉 残页修补完成" : "⏰ 时间耗尽";
+    modalTitle.textContent = win ? (isTempMode ? "🎉 试玩完成" : "🎉 残页修补完成") : "⏰ 时间耗尽";
 
     let rows = '<div class="result-row"><span>本页得分</span><span>' + score + '</span></div>';
     if (win) {
       rows += '<div class="result-row"><span>用时</span><span>' + usedTime + '秒</span></div>';
-      rows += '<div class="result-row"><span>使用提示</span><span>' + (hintUsed ? '是（已记录）' : '否') + '</span></div>';
-      if (progress) {
+      rows += '<div class="result-row"><span>使用提示</span><span>' + (hintUsed ? '是' : '否') + '</span></div>';
+      if (progress && !isTempMode) {
         const p = progress.getProgressAt(currentIndex);
         rows += '<div class="result-row"><span>历史最佳得分</span><span>' + p.bestScore + '</span></div>';
         rows += '<div class="result-row"><span>历史最快用时</span><span>' + (p.bestTime !== null ? p.bestTime + '秒' : '-') + '</span></div>';
       }
-      const allPuzzles = AppData.getAllPuzzles();
-      if (currentIndex + 1 < allPuzzles.length) {
-        rows += '<div class="result-row" style="color:#3a7653"><span>下一页解锁</span><span>✓</span></div>';
+      if (!isTempMode) {
+        const allPuzzles = AppData.getAllPuzzles();
+        if (currentIndex + 1 < allPuzzles.length) {
+          rows += '<div class="result-row" style="color:#3a7653"><span>下一页解锁</span><span>✓</span></div>';
+        }
+      } else {
+        rows += '<div class="result-row"><span>模式</span><span>试玩（不记录进度）</span></div>';
       }
     } else {
       rows += '<div class="result-row"><span>使用提示</span><span>' + (hintUsed ? '是' : '否') + '</span></div>';
+      if (isTempMode) {
+        rows += '<div class="result-row"><span>模式</span><span>试玩（不记录进度）</span></div>';
+      }
     }
     modalResult.innerHTML = rows;
 
-    const allPuzzles = AppData.getAllPuzzles();
-    if (win && currentIndex < allPuzzles.length - 1) {
-      nextBtn.textContent = "下一页";
-      nextBtn.onclick = () => start(currentIndex + 1);
-    } else if (win) {
-      nextBtn.textContent = "全部完成！重回第一页";
-      nextBtn.onclick = () => start(0);
+    if (isTempMode) {
+      nextBtn.textContent = "返回编辑器";
+      nextBtn.onclick = () => {
+        if (onTempExit) onTempExit();
+      };
+      retryBtn.textContent = "再试一次";
+      retryBtn.onclick = () => startTemp(currentPuzzle);
     } else {
-      nextBtn.textContent = "再试一次";
-      nextBtn.onclick = () => start(currentIndex);
+      const allPuzzles = AppData.getAllPuzzles();
+      if (win && currentIndex < allPuzzles.length - 1) {
+        nextBtn.textContent = "下一页";
+        nextBtn.onclick = () => start(currentIndex + 1);
+      } else if (win) {
+        nextBtn.textContent = "全部完成！重回第一页";
+        nextBtn.onclick = () => start(0);
+      } else {
+        nextBtn.textContent = "再试一次";
+        nextBtn.onclick = () => start(currentIndex);
+      }
+      retryBtn.onclick = () => start(currentIndex);
     }
-    retryBtn.onclick = () => start(currentIndex);
     overlay.classList.remove("hidden");
   }
 
   function updateHud() {
-    const puzzle = AppData.getPuzzleByIndex(currentIndex);
+    const puzzle = currentPuzzle;
     levelText.textContent = puzzle ? puzzle.name : (currentIndex + 1);
     scoreText.textContent = score;
     timeText.textContent = time;
-    if (progress) {
+    if (progress && !isTempMode) {
       const p = progress.getProgressAt(currentIndex);
       bestText.textContent = p ? (p.bestScore || 0) : 0;
+    } else if (isTempMode) {
+      bestText.textContent = "试玩";
     }
   }
 
@@ -381,7 +431,7 @@ const AppGame = (() => {
     if (!piece) return;
     hintUsed = true;
     if (tutorial) tutorial.onHint();
-    const puzzle = AppData.getPuzzleByIndex(currentIndex);
+    const puzzle = currentPuzzle;
     const theme = puzzle.theme;
     const paperClass = AppData.themes.paper[theme.paper].class;
     const inkClass = AppData.themes.ink[theme.ink].class;
@@ -405,7 +455,11 @@ const AppGame = (() => {
 
   function handleReset() {
     if (tutorial && tutorial.isActive()) return;
-    start(currentIndex);
+    if (isTempMode) {
+      startTemp(currentPuzzle);
+    } else {
+      start(currentIndex);
+    }
   }
 
   function getCurrentIndex() {
@@ -421,6 +475,7 @@ const AppGame = (() => {
   return {
     init,
     start,
+    startTemp,
     pauseTimer,
     resumeTimer,
     getState,

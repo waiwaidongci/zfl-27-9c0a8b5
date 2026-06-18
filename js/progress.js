@@ -85,24 +85,11 @@ const AppProgress = (() => {
     }
   }
 
-  function handleCustomDeleted(customId) {
-    const allPuzzles = AppData.getAllPuzzles();
-    const newProgress = [];
-    for (let i = 0; i < allPuzzles.length; i++) {
-      const oldIdx = findProgressIndexForPuzzleId(allPuzzles[i].id);
-      if (oldIdx >= 0 && oldIdx < progress.length) {
-        newProgress.push(progress[oldIdx]);
-      } else {
-        newProgress.push(createDefaultProgress(i));
-      }
-    }
-    progress = newProgress;
+  function handleCustomDeleted(deleteIndex) {
+    if (deleteIndex < 0 || deleteIndex >= progress.length) return;
+    progress.splice(deleteIndex, 1);
+    ensureProgressSize();
     saveProgress();
-  }
-
-  function findProgressIndexForPuzzleId(id) {
-    const allPuzzles = AppData.getAllPuzzles();
-    return allPuzzles.findIndex(p => p.id === id);
   }
 
   function rebuildProgressForCustoms() {
