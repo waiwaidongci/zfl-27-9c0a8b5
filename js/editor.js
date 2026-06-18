@@ -62,12 +62,21 @@ const AppEditor = (() => {
 
   function validate() {
     const total = editorState.cols * editorState.rows;
-    if (editorState.text.length !== total) return false;
-    if (!editorState.text.every(t => typeof t === "string" && t.trim().length > 0)) return false;
-    if (!editorState.name.trim()) return false;
-    if (editorState.timeLimit < 10 || editorState.timeLimit > 600) return false;
-    if (editorState.hintPenalty < 0 || editorState.hintPenalty > 500) return false;
-    return true;
+    if (editorState.text.length !== total) return { ok: false, msg: "残片文字数量与格子总数不匹配。" };
+    if (!editorState.text.every(t => typeof t === "string" && t.trim().length > 0)) return { ok: false, msg: "所有残片文字都不能为空。" };
+    if (!editorState.name.trim()) return { ok: false, msg: "残页名称不能为空。" };
+    if (editorState.timeLimit < 10 || editorState.timeLimit > 600) return { ok: false, msg: "限制时间需在 10-600 秒之间。" };
+    if (editorState.hintPenalty < 0 || editorState.hintPenalty > 500) return { ok: false, msg: "使用提示扣分需在 0-500 分之间。" };
+    const hasRotateTool = editorState.availableTools.includes("rotateCw") ||
+                          editorState.availableTools.includes("rotateCcw");
+    if (editorState.initialRotationScrambled && !hasRotateTool) {
+      return { ok: false, msg: "已启用初始方向打乱，但缺少旋转工具，玩家无法修正方向，请勾选顺时针或逆时针旋转。" };
+    }
+    const hasFlipTool = editorState.availableTools.includes("flip");
+    if (editorState.initialFlipScrambled && !hasFlipTool) {
+      return { ok: false, msg: "已启用初始翻面打乱，但缺少翻面工具，玩家无法修正翻面，请勾选水平翻面。" };
+    }
+    return { ok: true };
   }
 
   function buildPuzzle() {
@@ -89,8 +98,9 @@ const AppEditor = (() => {
   }
 
   function handleSave() {
-    if (!validate()) {
-      alert("请检查填写内容：名称、所有残片文字都不能为空，限时在10-600秒之间，提示扣分在0-500之间。");
+    const result = validate();
+    if (!result.ok) {
+      alert(result.msg || "请检查填写内容。");
       return;
     }
     const puzzle = buildPuzzle();
@@ -99,8 +109,9 @@ const AppEditor = (() => {
   }
 
   function handlePreview() {
-    if (!validate()) {
-      alert("请检查填写内容：名称、所有残片文字都不能为空，限时在10-600秒之间，提示扣分在0-500之间。");
+    const result = validate();
+    if (!result.ok) {
+      alert(result.msg || "请检查填写内容。");
       return;
     }
     const puzzle = buildPuzzle();
@@ -547,6 +558,13 @@ const AppEditor = (() => {
           editorState.enableRotation = true;
           const rotCheck = document.querySelector("#editorEnableRotation");
           if (rotCheck) rotCheck.checked = true;
+          if (!editorState.availableTools.includes("rotateCw")) {
+            editorState.availableTools.push("rotateCw");
+          }
+          if (!editorState.availableTools.includes("rotateCcw")) {
+            editorState.availableTools.push("rotateCcw");
+          }
+          refreshToolPickerUI();
         }
       };
     }
@@ -568,6 +586,10 @@ const AppEditor = (() => {
           editorState.enableFlip = true;
           const flipCheck = document.querySelector("#editorEnableFlip");
           if (flipCheck) flipCheck.checked = true;
+          if (!editorState.availableTools.includes("flip")) {
+            editorState.availableTools.push("flip");
+          }
+          refreshToolPickerUI();
         }
       };
     }
@@ -584,6 +606,22 @@ const AppEditor = (() => {
     if (initFlipCheck) initFlipCheck.checked = editorState.initialFlipScrambled;
   }
 
+  function refreshToolPickerUI() {
+    const toolPicker = document.querySelector("#toolPicker");
+    if (!toolPicker) return;
+    toolPicker.querySelectorAll('input[type="checkbox"]').forEach(input => {
+      const toolId = input.dataset.tool;
+      const shouldBeChecked = editorState.availableTools.includes(toolId);
+      if (input.checked !== shouldBeChecked) {
+        input.checked = shouldBeChecked;
+      }
+      const item = input.closest(".tool-picker-item");
+      if (item) {
+        item.classList.toggle("active", shouldBeChecked);
+      }
+    });
+  }
+
   function bindToolPickerEvents() {
     const toolPicker = document.querySelector("#toolPicker");
     if (!toolPicker) return;
@@ -596,6 +634,18 @@ const AppEditor = (() => {
           }
         } else {
           editorState.availableTools = editorState.availableTools.filter(t => t !== toolId);
+          if (toolId === "rotateCw" || toolId === "rotateCcw") {
+            const hasAnyRotate = editorState.availableTools.includes("rotateCw") ||
+                                 editorState.availableTools.includes("rotateCcw");
+            if (!hasAnyRotate) {
+              editorState.initialRotationScrambled = false;
+              refreshOrientationUI();
+            }
+          }
+          if (toolId === "flip") {
+            editorState.initialFlipScrambled = false;
+            refreshOrientationUI();
+          }
         }
         const item = input.closest(".tool-picker-item");
         if (item) {
