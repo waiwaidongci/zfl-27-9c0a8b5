@@ -149,12 +149,36 @@
     .theme-panel .theme-info .theme-val { font-weight: 700; color: var(--theme-title); }
 
     @media (max-width: 950px) { .app { grid-template-columns: 1fr; } .tray { min-height: 220px; } header { display: block; } }
+
+    .tutorial-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 200; display: none; }
+    .tutorial-overlay.active { display: block; }
+    .tutorial-highlight { position: fixed; border: 2px solid #fff; border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.65); z-index: 201; pointer-events: none; transition: all 0.3s ease; }
+    .tutorial-tooltip { position: fixed; z-index: 202; background: var(--theme-modal-bg); border: 1px solid var(--theme-modal-border); border-radius: 10px; padding: 18px 20px; max-width: 320px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); transition: all 0.3s ease; }
+    .tutorial-tooltip h3 { margin: 0 0 8px; font-size: 16px; color: var(--theme-title); }
+    .tutorial-tooltip p { margin: 0 0 12px; font-size: 14px; color: var(--theme-text-muted); line-height: 1.5; }
+    .tutorial-tooltip .tutorial-step { font-size: 12px; color: var(--theme-btn-secondary); margin-bottom: 8px; font-weight: 700; }
+    .tutorial-tooltip .tutorial-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .tutorial-tooltip .tutorial-actions button { padding: 8px 14px; font-size: 13px; }
+    .tutorial-tooltip .tutorial-actions .tutorial-skip { background: transparent; color: var(--theme-text-muted); border: 1px solid var(--theme-panel-border); }
+    .tutorial-tooltip::after { content: ''; position: absolute; width: 12px; height: 12px; background: var(--theme-modal-bg); border: 1px solid var(--theme-modal-border); transform: rotate(45deg); }
+    .tutorial-tooltip.arrow-bottom::after { top: -7px; left: 50%; margin-left: -6px; border-right: none; border-bottom: none; }
+    .tutorial-tooltip.arrow-top::after { bottom: -7px; left: 50%; margin-left: -6px; border-left: none; border-top: none; }
+    .tutorial-tooltip.arrow-left::after { right: -7px; top: 50%; margin-top: -6px; border-bottom: none; border-left: none; }
+    .tutorial-tooltip.arrow-right::after { left: -7px; top: 50%; margin-top: -6px; border-top: none; border-right: none; }
+    .tutorial-mask { position: fixed; inset: 0; z-index: 199; display: none; pointer-events: none; }
+    .tutorial-mask.active { display: block; }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .tutorial-entry-btn { background: var(--theme-btn-secondary); padding: 8px 12px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+    .tutorial-entry-btn::before { content: '?'; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: #fff; color: var(--theme-btn-secondary); border-radius: 50%; font-size: 12px; font-weight: 800; }
   </style>
 </head>
 <body>
   <header>
     <div><h1>古籍修补台</h1><div>拖拽纸片归位，沿字列和边缘修复残页。</div></div>
-    <button id="resetBtn">重开本关</button>
+    <div class="header-actions">
+      <button id="tutorialEntryBtn" class="tutorial-entry-btn">新手引导</button>
+      <button id="resetBtn">重开本关</button>
+    </div>
   </header>
   <main class="app">
     <aside class="panel">
@@ -196,6 +220,17 @@
         <button id="retryBtn" class="secondary">重玩本关</button>
         <button id="nextBtn">下一关</button>
       </div>
+    </div>
+  </div>
+  <div class="tutorial-mask" id="tutorialMask"></div>
+  <div class="tutorial-highlight hidden" id="tutorialHighlight"></div>
+  <div class="tutorial-tooltip hidden" id="tutorialTooltip">
+    <div class="tutorial-step" id="tutorialStepText">第 1 步 / 共 5 步</div>
+    <h3 id="tutorialTitle">欢迎来到古籍修补台</h3>
+    <p id="tutorialDesc">在这里，你将学习如何修补古籍残页。让我们开始吧！</p>
+    <div class="tutorial-actions">
+      <button class="tutorial-skip" id="tutorialSkipBtn">跳过引导</button>
+      <button id="tutorialNextBtn">开始</button>
     </div>
   </div>
   <script>
@@ -407,6 +442,7 @@
 
       document.querySelectorAll(".level-card").forEach(card => {
         card.onclick = () => {
+          if (tutorialActive) return;
           const idx = Number(card.dataset.level);
           if (progress[idx].unlocked) start(idx);
         };
@@ -445,8 +481,16 @@
       tray.appendChild(el);
       el.addEventListener("pointerdown", event => {
         if (piece.locked) return;
+        if (tutorialActive) {
+          const step = tutorialSteps[tutorialStep];
+          if (step.waitFor === "dragStart" || step.waitFor === "firstDrop") {
+          } else {
+            return;
+          }
+        }
         drag = { el, piece, ox: event.offsetX, oy: event.offsetY };
         el.setPointerCapture(event.pointerId);
+        tutorialOnDragStart();
       });
       el.addEventListener("pointermove", event => {
         if (!drag || drag.el !== el) return;
@@ -477,7 +521,11 @@
         el.classList.add("locked");
         piece.locked = true;
         score += 80;
-        if (pieces.every(item => item.locked)) finish(true);
+        tutorialOnFirstDrop();
+        if (pieces.every(item => item.locked)) {
+          tutorialOnWin();
+          finish(true);
+        }
       } else {
         score = Math.max(0, score - 50);
       }
@@ -554,9 +602,14 @@
     }
 
     document.querySelector("#hintBtn").onclick = () => {
+      if (tutorialActive) {
+        const step = tutorialSteps[tutorialStep];
+        if (step.waitFor !== "hint") return;
+      }
       const piece = pieces.find(item => !item.locked);
       if (!piece) return;
       hintUsed = true;
+      tutorialOnHint();
       const p = puzzles[current];
       const theme = p.theme;
       const paperClass = themes.paper[theme.paper].class;
@@ -578,7 +631,299 @@
       updateHud();
     };
 
-    document.querySelector("#resetBtn").onclick = () => start(current);
+    document.querySelector("#resetBtn").onclick = () => {
+      if (tutorialActive) return;
+      start(current);
+    };
+
+    const TUTORIAL_KEY = "zfl27TutorialDone";
+    const tutorialMask = document.querySelector("#tutorialMask");
+    const tutorialHighlight = document.querySelector("#tutorialHighlight");
+    const tutorialTooltip = document.querySelector("#tutorialTooltip");
+    const tutorialStepText = document.querySelector("#tutorialStepText");
+    const tutorialTitle = document.querySelector("#tutorialTitle");
+    const tutorialDesc = document.querySelector("#tutorialDesc");
+    const tutorialNextBtn = document.querySelector("#tutorialNextBtn");
+    const tutorialSkipBtn = document.querySelector("#tutorialSkipBtn");
+    const tutorialEntryBtn = document.querySelector("#tutorialEntryBtn");
+
+    let tutorialActive = false;
+    let tutorialStep = 0;
+    let tutorialFirstDropDone = false;
+    let tutorialHintUsed = false;
+
+    const tutorialSteps = [
+      {
+        title: "欢迎来到古籍修补台",
+        desc: "在这里，你将学习如何修补古籍残页。通过拖拽纸片到正确位置，完成残页的修复。让我们开始吧！",
+        target: null,
+        position: "center",
+        arrow: null,
+        nextText: "开始学习",
+        action: "next"
+      },
+      {
+        title: "认识右侧的纸片托盘",
+        desc: "这里存放着需要修补的古籍残片。每一张纸片都有编号和文字，请试着将鼠标移到纸片上，按住并拖动它。",
+        target: "#tray",
+        position: "left",
+        arrow: "right",
+        nextText: "下一步",
+        action: "next",
+        waitFor: "dragStart"
+      },
+      {
+        title: "把纸片拖到残页上",
+        desc: "将纸片拖到左侧的残页区域。当纸片靠近正确位置时，会自动吸附上去。试试拖动第一张纸片吧！",
+        target: "#board",
+        position: "right",
+        arrow: "left",
+        nextText: "我知道了",
+        action: "next",
+        waitFor: "firstDrop"
+      },
+      {
+        title: "使用提示功能",
+        desc: "如果不知道纸片该放哪里，可以点击左侧的「使用提示」按钮，它会高亮显示一个尚未归位的位置。使用提示会扣减分数哦。",
+        target: "#hintBtn",
+        position: "right",
+        arrow: "left",
+        nextText: "我知道了",
+        action: "next",
+        waitFor: "hint"
+      },
+      {
+        title: "完成修补，恭喜通关！",
+        desc: "把所有纸片都归位后，残页就修补完成啦。你可以查看得分和用时，也可以挑战下一页。现在，试着完成本关吧！",
+        target: null,
+        position: "center",
+        arrow: null,
+        nextText: "开始游戏",
+        action: "finish"
+      }
+    ];
+
+    function isTutorialDone() {
+      return localStorage.getItem(TUTORIAL_KEY) === "true";
+    }
+
+    function markTutorialDone() {
+      localStorage.setItem(TUTORIAL_KEY, "true");
+    }
+
+    function startTutorial() {
+      tutorialActive = true;
+      tutorialStep = 0;
+      tutorialFirstDropDone = false;
+      tutorialHintUsed = false;
+      start(0);
+      clearInterval(timer);
+      time = totalTime;
+      score = 1000;
+      updateHud();
+      showTutorialStep(0);
+    }
+
+    function showTutorialStep(stepIdx) {
+      tutorialStep = stepIdx;
+      const step = tutorialSteps[stepIdx];
+
+      tutorialStepText.textContent = "第 " + (stepIdx + 1) + " 步 / 共 " + tutorialSteps.length + " 步";
+      tutorialTitle.textContent = step.title;
+      tutorialDesc.textContent = step.desc;
+      tutorialNextBtn.textContent = step.nextText;
+
+      tutorialTooltip.classList.remove("hidden");
+      tutorialMask.classList.add("active");
+      tutorialHighlight.classList.remove("hidden");
+      tutorialTooltip.classList.remove("arrow-bottom", "arrow-top", "arrow-left", "arrow-right");
+
+      if (step.arrow) {
+        tutorialTooltip.classList.add("arrow-" + step.arrow);
+      }
+
+      if (step.target) {
+        const targetEl = document.querySelector(step.target);
+        if (targetEl) {
+          positionHighlight(targetEl);
+          positionTooltip(targetEl, step.position);
+        }
+      } else {
+        positionCenter();
+      }
+
+      if (step.action === "finish") {
+        tutorialNextBtn.textContent = step.nextText;
+      }
+    }
+
+    function positionHighlight(el) {
+      const rect = el.getBoundingClientRect();
+      const padding = 8;
+      tutorialHighlight.style.left = (rect.left - padding) + "px";
+      tutorialHighlight.style.top = (rect.top - padding) + "px";
+      tutorialHighlight.style.width = (rect.width + padding * 2) + "px";
+      tutorialHighlight.style.height = (rect.height + padding * 2) + "px";
+    }
+
+    function positionTooltip(el, position) {
+      const rect = el.getBoundingClientRect();
+      const tooltipRect = tutorialTooltip.getBoundingClientRect();
+      let left, top;
+      const offset = 16;
+
+      switch (position) {
+        case "left":
+          left = rect.left - tooltipRect.width - offset;
+          top = rect.top + rect.height / 2 - tooltipRect.height / 2;
+          break;
+        case "right":
+          left = rect.right + offset;
+          top = rect.top + rect.height / 2 - tooltipRect.height / 2;
+          break;
+        case "top":
+          left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+          top = rect.top - tooltipRect.height - offset;
+          break;
+        case "bottom":
+          left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+          top = rect.bottom + offset;
+          break;
+      }
+
+      left = Math.max(16, Math.min(left, window.innerWidth - tooltipRect.width - 16));
+      top = Math.max(16, Math.min(top, window.innerHeight - tooltipRect.height - 16));
+
+      tutorialTooltip.style.left = left + "px";
+      tutorialTooltip.style.top = top + "px";
+    }
+
+    function positionCenter() {
+      tutorialHighlight.style.left = "-9999px";
+      tutorialHighlight.style.top = "-9999px";
+      tutorialHighlight.style.width = "0";
+      tutorialHighlight.style.height = "0";
+
+      const tooltipRect = tutorialTooltip.getBoundingClientRect();
+      tutorialTooltip.style.left = (window.innerWidth / 2 - tooltipRect.width / 2) + "px";
+      tutorialTooltip.style.top = (window.innerHeight / 2 - tooltipRect.height / 2) + "px";
+    }
+
+    function nextTutorialStep() {
+      const step = tutorialSteps[tutorialStep];
+
+      if (step.action === "finish") {
+        endTutorial();
+        return;
+      }
+
+      if (tutorialStep < tutorialSteps.length - 1) {
+        showTutorialStep(tutorialStep + 1);
+      } else {
+        endTutorial();
+      }
+    }
+
+    function endTutorial() {
+      tutorialActive = false;
+      tutorialTooltip.classList.add("hidden");
+      tutorialMask.classList.remove("active");
+      tutorialHighlight.classList.add("hidden");
+      markTutorialDone();
+      clearInterval(timer);
+      timer = setInterval(() => {
+        time -= 1;
+        score = Math.max(0, score - 1);
+        updateHud();
+        if (time <= 0) finish(false);
+      }, 1000);
+    }
+
+    function skipTutorial() {
+      tutorialActive = false;
+      tutorialTooltip.classList.add("hidden");
+      tutorialMask.classList.remove("active");
+      tutorialHighlight.classList.add("hidden");
+      markTutorialDone();
+      clearInterval(timer);
+      timer = setInterval(() => {
+        time -= 1;
+        score = Math.max(0, score - 1);
+        updateHud();
+        if (time <= 0) finish(false);
+      }, 1000);
+    }
+
+    function tutorialOnDragStart() {
+      if (!tutorialActive) return;
+      const step = tutorialSteps[tutorialStep];
+      if (step.waitFor === "dragStart") {
+        setTimeout(() => {
+          if (tutorialStep === 1) {
+            nextTutorialStep();
+          }
+        }, 500);
+      }
+    }
+
+    function tutorialOnFirstDrop() {
+      if (!tutorialActive) return;
+      if (tutorialFirstDropDone) return;
+      tutorialFirstDropDone = true;
+      const step = tutorialSteps[tutorialStep];
+      if (step.waitFor === "firstDrop") {
+        setTimeout(() => {
+          if (tutorialStep === 2) {
+            nextTutorialStep();
+          }
+        }, 800);
+      }
+    }
+
+    function tutorialOnHint() {
+      if (!tutorialActive) return;
+      if (tutorialHintUsed) return;
+      tutorialHintUsed = true;
+      const step = tutorialSteps[tutorialStep];
+      if (step.waitFor === "hint") {
+        setTimeout(() => {
+          if (tutorialStep === 3) {
+            nextTutorialStep();
+          }
+        }, 1200);
+      }
+    }
+
+    function tutorialOnWin() {
+      if (!tutorialActive) return;
+      endTutorial();
+    }
+
+    tutorialNextBtn.onclick = () => {
+      nextTutorialStep();
+    };
+
+    tutorialSkipBtn.onclick = () => {
+      skipTutorial();
+    };
+
+    tutorialEntryBtn.onclick = () => {
+      startTutorial();
+    };
+
+    window.addEventListener("resize", () => {
+      if (!tutorialActive) return;
+      const step = tutorialSteps[tutorialStep];
+      if (step.target) {
+        const targetEl = document.querySelector(step.target);
+        if (targetEl) {
+          positionHighlight(targetEl);
+          positionTooltip(targetEl, step.position);
+        }
+      } else {
+        positionCenter();
+      }
+    });
 
     let startIdx = 0;
     for (let i = puzzles.length - 1; i >= 0; i--) {
@@ -589,6 +934,10 @@
     }
     if (!progress[startIdx].unlocked) startIdx = 0;
     start(startIdx);
+
+    if (!isTutorialDone()) {
+      setTimeout(() => startTutorial(), 300);
+    }
   </script>
 </body>
 </html>
