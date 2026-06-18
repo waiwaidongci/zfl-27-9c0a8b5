@@ -81,6 +81,7 @@ const AppSettlement = (() => {
     const hintPenaltyTotal = hintUsed ? hintPenalty : 0;
 
     finalScore = Math.max(0, baseScore + timeBonus - errorPenaltyTotal - toolPenaltyTotal - hintPenaltyTotal);
+    calculateRating();
 
     return finalScore;
   }
