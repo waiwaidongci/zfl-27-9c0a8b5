@@ -160,6 +160,7 @@
     .tutorial-tooltip .tutorial-actions { display: flex; gap: 8px; justify-content: flex-end; }
     .tutorial-tooltip .tutorial-actions button { padding: 8px 14px; font-size: 13px; }
     .tutorial-tooltip .tutorial-actions .tutorial-skip { background: transparent; color: var(--theme-text-muted); border: 1px solid var(--theme-panel-border); }
+    .tutorial-tooltip .tutorial-actions button:disabled { cursor: not-allowed; opacity: 0.55; }
     .tutorial-tooltip::after { content: ''; position: absolute; width: 12px; height: 12px; background: var(--theme-modal-bg); border: 1px solid var(--theme-modal-border); transform: rotate(45deg); }
     .tutorial-tooltip.arrow-bottom::after { top: -7px; left: 50%; margin-left: -6px; border-right: none; border-bottom: none; }
     .tutorial-tooltip.arrow-top::after { bottom: -7px; left: 50%; margin-left: -6px; border-left: none; border-top: none; }
@@ -483,8 +484,7 @@
         if (piece.locked) return;
         if (tutorialActive) {
           const step = tutorialSteps[tutorialStep];
-          if (step.waitFor === "dragStart" || step.waitFor === "firstDrop") {
-          } else {
+          if (!step.allowDrag) {
             return;
           }
         }
@@ -651,6 +651,7 @@
     let tutorialStep = 0;
     let tutorialFirstDropDone = false;
     let tutorialHintUsed = false;
+    let tutorialCompletedSteps = {};
 
     const tutorialSteps = [
       {
@@ -670,7 +671,8 @@
         arrow: "right",
         nextText: "下一步",
         action: "next",
-        waitFor: "dragStart"
+        waitFor: "dragStart",
+        allowDrag: true
       },
       {
         title: "把纸片拖到残页上",
@@ -680,7 +682,8 @@
         arrow: "left",
         nextText: "我知道了",
         action: "next",
-        waitFor: "firstDrop"
+        waitFor: "firstDrop",
+        allowDrag: true
       },
       {
         title: "使用提示功能",
@@ -694,12 +697,14 @@
       },
       {
         title: "完成修补，恭喜通关！",
-        desc: "把所有纸片都归位后，残页就修补完成啦。你可以查看得分和用时，也可以挑战下一页。现在，试着完成本关吧！",
-        target: null,
-        position: "center",
-        arrow: null,
-        nextText: "开始游戏",
-        action: "finish"
+        desc: "继续把所有纸片都拖到正确位置。全部归位后，残页就修补完成啦，届时会记录引导完成状态。",
+        target: "#board",
+        position: "right",
+        arrow: "left",
+        nextText: "完成本关后继续",
+        action: "finish",
+        waitFor: "win",
+        allowDrag: true
       }
     ];
 
@@ -716,6 +721,7 @@
       tutorialStep = 0;
       tutorialFirstDropDone = false;
       tutorialHintUsed = false;
+      tutorialCompletedSteps = {};
       start(0);
       clearInterval(timer);
       time = totalTime;
@@ -732,6 +738,7 @@
       tutorialTitle.textContent = step.title;
       tutorialDesc.textContent = step.desc;
       tutorialNextBtn.textContent = step.nextText;
+      tutorialNextBtn.disabled = isTutorialStepWaiting(step);
 
       tutorialTooltip.classList.remove("hidden");
       tutorialMask.classList.add("active");
@@ -752,9 +759,7 @@
         positionCenter();
       }
 
-      if (step.action === "finish") {
-        tutorialNextBtn.textContent = step.nextText;
-      }
+      updateTutorialControls();
     }
 
     function positionHighlight(el) {
@@ -812,6 +817,8 @@
     function nextTutorialStep() {
       const step = tutorialSteps[tutorialStep];
 
+      if (isTutorialStepWaiting(step)) return;
+
       if (step.action === "finish") {
         endTutorial();
         return;
@@ -822,6 +829,23 @@
       } else {
         endTutorial();
       }
+    }
+
+    function completeTutorialStep(expectedWait) {
+      if (!tutorialActive) return;
+      const step = tutorialSteps[tutorialStep];
+      if (step.waitFor !== expectedWait) return;
+      tutorialCompletedSteps[tutorialStep] = true;
+      updateTutorialControls();
+    }
+
+    function updateTutorialControls() {
+      const step = tutorialSteps[tutorialStep];
+      tutorialNextBtn.disabled = isTutorialStepWaiting(step);
+    }
+
+    function isTutorialStepWaiting(step) {
+      return Boolean(step.waitFor && !tutorialCompletedSteps[tutorialStep]);
     }
 
     function endTutorial() {
@@ -858,6 +882,7 @@
       if (!tutorialActive) return;
       const step = tutorialSteps[tutorialStep];
       if (step.waitFor === "dragStart") {
+        completeTutorialStep("dragStart");
         setTimeout(() => {
           if (tutorialStep === 1) {
             nextTutorialStep();
@@ -872,6 +897,7 @@
       tutorialFirstDropDone = true;
       const step = tutorialSteps[tutorialStep];
       if (step.waitFor === "firstDrop") {
+        completeTutorialStep("firstDrop");
         setTimeout(() => {
           if (tutorialStep === 2) {
             nextTutorialStep();
@@ -886,6 +912,7 @@
       tutorialHintUsed = true;
       const step = tutorialSteps[tutorialStep];
       if (step.waitFor === "hint") {
+        completeTutorialStep("hint");
         setTimeout(() => {
           if (tutorialStep === 3) {
             nextTutorialStep();
@@ -896,6 +923,7 @@
 
     function tutorialOnWin() {
       if (!tutorialActive) return;
+      completeTutorialStep("win");
       endTutorial();
     }
 
