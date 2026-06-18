@@ -22,6 +22,7 @@ const AppGame = (() => {
   let currentIndex = 0;
   let currentPuzzle = null;
   let isTempMode = false;
+  let isDailyMode = false;
   let score = 0;
   let time = 0;
   let totalTime = 0;
@@ -35,6 +36,8 @@ const AppGame = (() => {
 
   let onTempExit = null;
   let onLevelsRefresh = null;
+  let onDailyExit = null;
+  let onDailyFinish = null;
   let tutorial = null;
   let progress = null;
 
@@ -43,6 +46,8 @@ const AppGame = (() => {
     if (deps.progress) progress = deps.progress;
     if (deps.onLevelsRefresh) onLevelsRefresh = deps.onLevelsRefresh;
     if (deps.onTempExit) onTempExit = deps.onTempExit;
+    if (deps.onDailyExit) onDailyExit = deps.onDailyExit;
+    if (deps.onDailyFinish) onDailyFinish = deps.onDailyFinish;
   }
 
   function cacheElements() {
@@ -136,7 +141,20 @@ const AppGame = (() => {
   function startTemp(puzzle) {
     currentIndex = -1;
     isTempMode = true;
+    isDailyMode = false;
     currentPuzzle = { ...puzzle, id: "temp", custom: true };
+    initGameState();
+    if (onLevelsRefresh) onLevelsRefresh();
+    renderPuzzle();
+    startTimer();
+    updateHud();
+  }
+
+  function startDaily(puzzle) {
+    currentIndex = -1;
+    isTempMode = false;
+    isDailyMode = true;
+    currentPuzzle = { ...puzzle };
     initGameState();
     if (onLevelsRefresh) onLevelsRefresh();
     renderPuzzle();
@@ -401,7 +419,16 @@ const AppGame = (() => {
 
     const finalScore = AppSettlement.getFinalScore();
 
-    if (win && progress && !isTempMode) {
+    if (isDailyMode) {
+      if (onDailyFinish) {
+        onDailyFinish({
+          win,
+          score: finalScore,
+          usedTime,
+          hintUsed
+        });
+      }
+    } else if (win && progress && !isTempMode) {
       const prev = progress.getProgressAt(currentIndex);
       const newBestScore = Math.max(prev.bestScore, finalScore);
       const newBestTime = (prev.bestTime === null || usedTime < prev.bestTime) ? usedTime : prev.bestTime;
@@ -418,7 +445,7 @@ const AppGame = (() => {
       }
     }
 
-    if (onLevelsRefresh && !isTempMode) onLevelsRefresh();
+    if (onLevelsRefresh && !isTempMode && !isDailyMode) onLevelsRefresh();
     updateHud();
 
     modalTitle.style.display = "none";
@@ -432,7 +459,17 @@ const AppGame = (() => {
       puzzleName: currentPuzzle.name
     });
 
-    if (isTempMode) {
+    if (isDailyMode) {
+      nextBtn.textContent = "返回进度册";
+      nextBtn.onclick = () => {
+        if (onDailyExit) onDailyExit();
+      };
+      retryBtn.textContent = win ? "再次挑战" : "再试一次";
+      retryBtn.onclick = () => {
+        if (AppDailyChallenge) AppDailyChallenge.recordSessionStart();
+        startDaily(currentPuzzle);
+      };
+    } else if (isTempMode) {
       nextBtn.textContent = "返回编辑器";
       nextBtn.onclick = () => {
         if (onTempExit) onTempExit();
@@ -458,11 +495,20 @@ const AppGame = (() => {
 
   function updateHud() {
     const puzzle = currentPuzzle;
-    levelText.textContent = puzzle ? puzzle.name : (currentIndex + 1);
-    scoreText.textContent = score;
-    timeText.textContent = time;
+    if (levelText) {
+      if (isDailyMode && puzzle) {
+        levelText.innerHTML = puzzle.name + ' <span class="daily-mode-indicator">每日挑战</span>';
+      } else {
+        levelText.textContent = puzzle ? puzzle.name : (currentIndex + 1);
+      }
+    }
+    if (scoreText) scoreText.textContent = score;
+    if (timeText) timeText.textContent = time;
     if (errorText) errorText.textContent = AppSettlement.getErrorAttempts();
-    if (progress && !isTempMode) {
+    if (isDailyMode) {
+      const todayRecord = AppDailyChallenge ? AppDailyChallenge.getTodayRecord() : null;
+      bestText.textContent = todayRecord && todayRecord.completed ? todayRecord.score : "挑战中";
+    } else if (progress && !isTempMode) {
       const p = progress.getProgressAt(currentIndex);
       bestText.textContent = p ? (p.bestScore || 0) : 0;
     } else if (isTempMode) {
@@ -511,7 +557,10 @@ const AppGame = (() => {
 
   function handleReset() {
     if (tutorial && tutorial.isActive()) return;
-    if (isTempMode) {
+    if (isDailyMode) {
+      if (AppDailyChallenge) AppDailyChallenge.recordSessionStart();
+      startDaily(currentPuzzle);
+    } else if (isTempMode) {
       startTemp(currentPuzzle);
     } else {
       start(currentIndex);
@@ -529,16 +578,22 @@ const AppGame = (() => {
     AppToolbox.init({ game: { onToolUsed } });
   }
 
+  function getIsDailyMode() {
+    return isDailyMode;
+  }
+
   return {
     init,
     start,
     startTemp,
+    startDaily,
     pauseTimer,
     resumeTimer,
     getState,
     setState,
     updateHud,
     getCurrentIndex,
+    getIsDailyMode,
     onToolUsed
   };
 })();

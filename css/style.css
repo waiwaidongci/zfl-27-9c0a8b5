@@ -467,3 +467,190 @@ button:disabled { background: var(--theme-btn-disabled); cursor: not-allowed; op
   font-weight: 600;
   color: var(--theme-title);
 }
+
+.daily-entry-btn {
+  background: #764a3a;
+  padding: 8px 12px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+.daily-entry-btn::before {
+  content: '✦';
+  font-style: normal;
+  font-size: 14px;
+}
+.daily-entry-btn.is-active {
+  background: #3a7653;
+}
+.daily-entry-btn .daily-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #c0683c;
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.daily-challenge-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.daily-countdown-section {
+  background: var(--theme-modal-row);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  border: 1px solid var(--theme-panel-border);
+}
+.daily-countdown-label {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+  margin-bottom: 4px;
+}
+.daily-countdown-time {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--theme-btn-bg);
+  font-family: "Courier New", monospace;
+  letter-spacing: 1px;
+}
+
+.daily-records-list {
+  display: grid;
+  gap: 8px;
+}
+
+.daily-record-card {
+  border: 1px solid var(--theme-panel-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--theme-card-bg);
+  transition: all 0.2s;
+}
+.daily-record-card.daily-rec-clickable:hover {
+  border-color: #764a3a;
+  background: var(--theme-card-hover);
+  transform: translateY(-1px);
+}
+.daily-record-card.daily-status-completed {
+  border-color: #3a7653;
+  background: linear-gradient(135deg, #f5f9f6 0%, #eaf4ed 100%);
+}
+.daily-record-card.daily-status-available {
+  border-color: #764a3a;
+  background: linear-gradient(135deg, #fdf6e6 0%, #f9ebd8 100%);
+  box-shadow: 0 0 0 1px rgba(118, 74, 58, 0.15);
+}
+.daily-record-card.daily-status-playing {
+  border-color: #c0683c;
+  background: linear-gradient(135deg, #fdf3ee 0%, #f8e4d8 100%);
+  animation: daily-pulse 2s ease-in-out infinite;
+}
+.daily-record-card.daily-status-failed {
+  background: linear-gradient(135deg, #f8f0ee 0%, #f0e0dc 100%);
+  opacity: 0.85;
+}
+.daily-record-card.daily-status-missed {
+  background: var(--theme-card-locked);
+  opacity: 0.5;
+}
+
+@keyframes daily-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(192, 104, 60, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(192, 104, 60, 0); }
+}
+
+.daily-rec-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.daily-rec-date {
+  font-weight: 800;
+  color: var(--theme-title);
+  font-size: 14px;
+}
+.daily-rec-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.daily-status-completed .daily-rec-status {
+  background: #3a7653;
+  color: #fff;
+}
+.daily-status-available .daily-rec-status {
+  background: #764a3a;
+  color: #fff;
+}
+.daily-status-playing .daily-rec-status {
+  background: #c0683c;
+  color: #fff;
+}
+.daily-status-failed .daily-rec-status {
+  background: #8a4f2d;
+  color: #fff;
+}
+.daily-status-missed .daily-rec-status {
+  background: var(--theme-text-muted);
+  color: #fff;
+}
+
+.daily-rec-score,
+.daily-rec-time {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--theme-text-muted);
+  padding: 2px 0;
+}
+.daily-rec-score .val,
+.daily-rec-time .val {
+  font-weight: 700;
+  color: var(--theme-title);
+}
+.daily-rec-score .val.muted,
+.daily-rec-time .val.muted {
+  color: #b8a994;
+  font-weight: 400;
+}
+.daily-rec-hint {
+  font-size: 11px;
+  color: #c0683c;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.daily-mode-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #764a3a;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 6px;
+}
+.daily-mode-indicator::before {
+  content: '✦';
+  font-size: 12px;
+}
+
+.daily-return-btn {
+  background: var(--theme-btn-secondary);
+  margin-top: 8px;
+  width: 100%;
+  font-size: 13px;
+}
+

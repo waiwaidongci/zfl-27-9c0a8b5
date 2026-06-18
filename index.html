@@ -10,6 +10,7 @@
   <header>
     <div><h1>古籍修补台</h1><div>拖拽纸片归位，沿字列和边缘修复残页。</div></div>
     <div class="header-actions">
+      <button id="dailyChallengeBtn" class="daily-entry-btn">每日残页挑战</button>
       <button id="editorEntryBtn" class="editor-entry-btn">残页编辑器</button>
       <button id="tutorialEntryBtn" class="tutorial-entry-btn">新手引导</button>
       <button id="resetBtn">重开本关</button>
@@ -19,7 +20,9 @@
   <div class="game-view" id="gameView">
     <main class="app">
       <aside class="panel">
-        <h2>进度册</h2>
+        <h2>每日残页挑战</h2>
+        <div class="daily-challenge-panel" id="dailyChallengePanel"></div>
+        <h2 style="margin-top:16px">进度册</h2>
         <div class="progress-book" id="levels"></div>
         <h2 style="margin-top:16px">本关状态</h2>
         <div class="stats">
@@ -80,6 +83,7 @@
   </div>
 
   <script src="js/data.js"></script>
+  <script src="js/dailyChallenge.js"></script>
   <script src="js/progress.js"></script>
   <script src="js/pieceState.js"></script>
   <script src="js/toolbox.js"></script>
