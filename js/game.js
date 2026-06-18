@@ -40,6 +40,7 @@ const AppGame = (() => {
   let onDailyFinish = null;
   let tutorial = null;
   let progress = null;
+  let dailyAutosaveTimer = null;
 
   function setDependencies(deps) {
     if (deps.tutorial) tutorial = deps.tutorial;
@@ -128,8 +129,10 @@ const AppGame = (() => {
       const p = progress.getProgressAt(index);
       if (!p || !p.unlocked) return;
     }
+    stopDailyAutosave();
     currentIndex = index;
     isTempMode = false;
+    isDailyMode = false;
     currentPuzzle = AppData.getPuzzleByIndex(index);
     initGameState();
     if (onLevelsRefresh) onLevelsRefresh();
@@ -139,6 +142,7 @@ const AppGame = (() => {
   }
 
   function startTemp(puzzle) {
+    stopDailyAutosave();
     currentIndex = -1;
     isTempMode = true;
     isDailyMode = false;
@@ -150,7 +154,7 @@ const AppGame = (() => {
     updateHud();
   }
 
-  function startDaily(puzzle) {
+  function startDaily(puzzle, restoreState) {
     currentIndex = -1;
     isTempMode = false;
     isDailyMode = true;
@@ -158,8 +162,118 @@ const AppGame = (() => {
     initGameState();
     if (onLevelsRefresh) onLevelsRefresh();
     renderPuzzle();
+    if (restoreState) {
+      restoreDailyState(restoreState);
+    } else {
+      if (AppDailyChallenge) AppDailyChallenge.recordSessionStart(captureDailyState());
+    }
     startTimer();
+    startDailyAutosave();
     updateHud();
+  }
+
+  function captureDailyState() {
+    const pieceStates = pieces.map(p => {
+      const el = document.querySelector('.piece[data-id="' + p.id + '"]');
+      let left = null, top = null, location = "tray";
+      if (el) {
+        left = parseFloat(el.style.left);
+        top = parseFloat(el.style.top);
+        location = el.parentElement && el.parentElement.id === "board" ? "board" : "tray";
+      }
+      return {
+        id: p.id,
+        rotation: p.rotation,
+        flipped: p.flipped,
+        locked: p.locked,
+        col: p.col,
+        row: p.row,
+        label: p.label,
+        left,
+        top,
+        location
+      };
+    });
+    return {
+      score,
+      time,
+      totalTime,
+      hintUsed,
+      errorAttempts: AppSettlement ? AppSettlement.getErrorAttempts() : 0,
+      toolUsage: AppToolbox ? AppToolbox.getUsage() : {},
+      pieceStates,
+      capturedAt: Date.now()
+    };
+  }
+
+  function saveDailyState() {
+    if (!isDailyMode || !AppDailyChallenge) return;
+    const state = captureDailyState();
+    AppDailyChallenge.updateSessionGameState(state);
+  }
+
+  function startDailyAutosave() {
+    stopDailyAutosave();
+    if (!isDailyMode) return;
+    dailyAutosaveTimer = setInterval(() => {
+      saveDailyState();
+    }, 3000);
+  }
+
+  function stopDailyAutosave() {
+    if (dailyAutosaveTimer) {
+      clearInterval(dailyAutosaveTimer);
+      dailyAutosaveTimer = null;
+    }
+  }
+
+  function restoreDailyState(savedState) {
+    if (!savedState) return;
+    if (typeof savedState.score === "number") score = savedState.score;
+    if (typeof savedState.time === "number") time = savedState.time;
+    if (typeof savedState.totalTime === "number") totalTime = savedState.totalTime;
+    if (typeof savedState.hintUsed === "boolean") hintUsed = savedState.hintUsed;
+    if (AppSettlement && typeof savedState.errorAttempts === "number") {
+      for (let i = 0; i < savedState.errorAttempts; i++) {
+        AppSettlement.incrementErrorAttempts();
+      }
+    }
+    if (AppToolbox && savedState.toolUsage) {
+      AppToolbox.setUsage(savedState.toolUsage);
+    }
+    if (savedState.pieceStates && Array.isArray(savedState.pieceStates)) {
+      savedState.pieceStates.forEach(ps => {
+        const piece = pieces.find(p => p.id === ps.id);
+        if (piece) {
+          piece.rotation = ps.rotation;
+          piece.flipped = ps.flipped;
+          piece.locked = ps.locked;
+        }
+        const el = document.querySelector('.piece[data-id="' + ps.id + '"]');
+        if (el && piece) {
+          if (ps.left !== null) el.style.left = ps.left + "px";
+          if (ps.top !== null) el.style.top = ps.top + "px";
+          if (ps.location === "board" && board) board.appendChild(el);
+          else if (ps.location === "tray" && tray) tray.appendChild(el);
+          AppPieceState.applyTransformToElement(el, piece);
+          if (ps.locked) {
+            el.classList.add("locked");
+            const p = currentPuzzle;
+            const cellW = board.clientWidth / p.cols;
+            const cellH = board.clientHeight / p.rows;
+            const targetX = piece.col * cellW + 5;
+            const targetY = piece.row * cellH + 5;
+            el.style.left = targetX + "px";
+            el.style.top = targetY + "px";
+            if (board && el.parentElement !== board) board.appendChild(el);
+          }
+        }
+      });
+    }
+    AppSettlement.setHintUsed(hintUsed);
+    if (AppDailyChallenge) {
+      AppDailyChallenge.updateSessionGameState(captureDailyState());
+    }
   }
 
   function initGameState() {
@@ -362,6 +476,7 @@ const AppGame = (() => {
       AppSettlement.incrementErrorAttempts();
       score = Math.max(0, score - 50);
     }
+    if (isDailyMode) saveDailyState();
     updateHud();
   }
 
@@ -396,10 +511,12 @@ const AppGame = (() => {
       }
     }
     AppSettlement.setToolUsage(AppToolbox.getUsage());
+    if (isDailyMode) saveDailyState();
   }
 
   function finish(win) {
     clearInterval(timer);
+    stopDailyAutosave();
     const usedTime = totalTime - time;
 
     AppSettlement.setWin(win);
@@ -552,6 +669,7 @@ const AppGame = (() => {
     const penalty = puzzle.hintPenalty || 80;
     score = Math.max(0, score - penalty);
     setTimeout(() => ghost.remove(), 900);
+    if (isDailyMode) saveDailyState();
     updateHud();
   }
 
@@ -582,6 +700,11 @@ const AppGame = (() => {
     return isDailyMode;
   }
 
+  function forceResetDailyMode() {
+    isDailyMode = false;
+    stopDailyAutosave();
+  }
+
   return {
     init,
     start,
@@ -594,6 +717,7 @@ const AppGame = (() => {
     updateHud,
     getCurrentIndex,
     getIsDailyMode,
+    forceResetDailyMode,
     onToolUsed
   };
 })();

@@ -102,6 +102,16 @@ const AppToolbox = (() => {
     return { ...toolUsage };
   }
 
+  function setUsage(usage) {
+    if (usage && typeof usage === "object") {
+      Object.keys(toolUsage).forEach(id => {
+        toolUsage[id] = usage[id] || 0;
+      });
+    }
+    updateToolStates();
+    render();
+  }
+
   function getTotalUsage() {
     return Object.values(toolUsage).reduce((a, b) => a + b, 0);
   }
@@ -300,6 +310,7 @@ const AppToolbox = (() => {
     setPuzzleConfig,
     resetUsage,
     getUsage,
+    setUsage,
     getTotalUsage,
     isToolAvailable,
     isEdgeAlignActive

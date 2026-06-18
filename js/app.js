@@ -100,14 +100,27 @@ const App = (() => {
     refreshDailyPanel();
 
     const hasActiveSession = AppDailyChallenge.hasActiveSession();
+    const savedGameState = AppDailyChallenge.getSessionGameState();
+    const todayRecord = AppDailyChallenge.getTodayRecord();
     const startIdx = AppProgress.findStartIndex();
     lastMainlineIndex = startIdx;
 
-    if (hasActiveSession && !AppDailyChallenge.getTodayRecord()?.completed) {
-      const shouldResume = confirm("检测到昨日有未完成的每日挑战，是否继续今日的每日挑战？");
-      if (shouldResume) {
+    if (hasActiveSession && savedGameState && todayRecord && !todayRecord.completed) {
+      const lockedCount = savedGameState.pieceStates ? savedGameState.pieceStates.filter(p => p.locked).length : 0;
+      const totalCount = savedGameState.pieceStates ? savedGameState.pieceStates.length : 0;
+      const msg = `检测到今日有未完成的每日挑战（已完成 ${lockedCount}/${totalCount} 片），是否恢复进度？\n\n点击「确定」恢复之前进度，点击「取消」重新开始挑战。`;
+      if (confirm(msg)) {
         handleStartDaily(true);
         return;
+      } else {
+        AppDailyChallenge.clearSession();
+      }
+    } else if (hasActiveSession && todayRecord && !todayRecord.completed) {
+      if (confirm("检测到今日有未完成的每日挑战，是否继续挑战？")) {
+        handleStartDaily(true);
+        return;
+      } else {
+        AppDailyChallenge.clearSession();
       }
     }
 
@@ -120,14 +133,16 @@ const App = (() => {
       alert("今日挑战已过期，请刷新页面获取新的挑战。");
       return;
     }
-    if (!resuming) {
+    let restoreState = null;
+    if (resuming) {
+      restoreState = AppDailyChallenge.getSessionGameState();
+    } else {
       if (!AppGame.getIsDailyMode()) {
         lastMainlineIndex = AppGame.getCurrentIndex();
       }
-      AppDailyChallenge.recordSessionStart();
     }
     const todayPuzzle = AppDailyChallenge.getTodayPuzzle();
-    AppGame.startDaily(todayPuzzle);
+    AppGame.startDaily(todayPuzzle, restoreState);
     refreshDailyPanel();
     updateDailyBtnState();
   }

@@ -286,12 +286,14 @@ const AppDailyChallenge = (() => {
     return record;
   }
 
-  function recordSessionStart() {
+  function recordSessionStart(gameState) {
     const todayStr = getDateString();
     const session = {
       date: todayStr,
       startedAt: Date.now(),
-      state: "playing"
+      state: "playing",
+      gameState: gameState || null,
+      lastSavedAt: Date.now()
     };
     saveSession(session);
     addOrUpdateRecord({
@@ -303,6 +305,20 @@ const AppDailyChallenge = (() => {
       hasAttempt: true
     });
     return session;
+  }
+
+  function updateSessionGameState(gameState) {
+    const session = loadSession();
+    if (!session) return null;
+    session.gameState = gameState;
+    session.lastSavedAt = Date.now();
+    saveSession(session);
+    return session;
+  }
+
+  function getSessionGameState() {
+    const session = loadSession();
+    return session ? session.gameState : null;
   }
 
   function hasActiveSession() {
@@ -408,6 +424,8 @@ const AppDailyChallenge = (() => {
     addOrUpdateRecord,
     recordResult,
     recordSessionStart,
+    updateSessionGameState,
+    getSessionGameState,
     hasActiveSession,
     loadSession,
     saveSession,
