@@ -700,11 +700,6 @@ const AppGame = (() => {
     return isDailyMode;
   }
 
-  function forceResetDailyMode() {
-    isDailyMode = false;
-    stopDailyAutosave();
-  }
-
   return {
     init,
     start,
@@ -717,7 +712,6 @@ const AppGame = (() => {
     updateHud,
     getCurrentIndex,
     getIsDailyMode,
-    forceResetDailyMode,
     onToolUsed
   };
 })();
