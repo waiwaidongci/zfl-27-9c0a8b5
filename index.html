@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>古籍修补台</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "PingFang SC", sans-serif; background: #efe8dc; color: #2b251d; }
+    header { padding: 18px 24px; background: #fffaf0; border-bottom: 1px solid #d8c7ad; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+    h1 { margin: 0; font-size: 26px; }
+    button { border: 0; border-radius: 8px; padding: 10px 14px; background: #8a4f2d; color: #fff; font-weight: 800; cursor: pointer; }
+    button.secondary { background: #6b6b55; }
+    .app { display: grid; grid-template-columns: 260px 1fr 280px; gap: 16px; padding: 16px; }
+    .panel { background: #fffaf0; border: 1px solid #d8c7ad; border-radius: 8px; padding: 14px; }
+    .levels { display: grid; gap: 8px; }
+    .stats { display: grid; gap: 8px; color: #6c5d4b; }
+    .board { position: relative; width: min(100%, 620px); aspect-ratio: 4 / 3; margin: 0 auto; background: #d9caa8; border: 12px solid #9a7a4c; border-radius: 8px; overflow: hidden; }
+    .gridline { position: absolute; border: 1px dashed rgba(75,55,35,.25); pointer-events: none; }
+    .piece, .ghost { position: absolute; border: 1px solid rgba(66,43,25,.45); border-radius: 4px; background: #f7ebcd; cursor: grab; user-select: none; display: grid; place-items: center; text-align: center; font-weight: 800; color: #563a24; box-shadow: 0 6px 18px rgba(70,45,20,.2); }
+    .piece.locked { cursor: default; box-shadow: inset 0 0 0 2px rgba(58,118,83,.7); }
+    .tray { min-height: 360px; position: relative; }
+    .piece small { display: block; font-weight: 400; color: #8b765d; margin-top: 4px; }
+    .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(45,32,20,.35); }
+    .modal { width: min(430px, calc(100% - 28px)); background: #fffaf0; border: 1px solid #d8c7ad; border-radius: 8px; padding: 22px; }
+    .hidden { display: none; }
+    @media (max-width: 950px) { .app { grid-template-columns: 1fr; } .tray { min-height: 220px; } header { display: block; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>古籍修补台</h1><div>拖拽纸片归位，沿字列和边缘修复残页。</div></div>
+    <button id="resetBtn">重开本关</button>
+  </header>
+  <main class="app">
+    <aside class="panel">
+      <h2>关卡</h2>
+      <div class="levels" id="levels"></div>
+      <h2>记录</h2>
+      <div class="stats">
+        <div>当前：<b id="levelText">1</b></div>
+        <div>分数：<b id="scoreText">0</b></div>
+        <div>剩余时间：<b id="timeText">120</b></div>
+        <div>最佳：<b id="bestText">0</b></div>
+      </div>
+      <p>纸片靠近正确格子会自动吸附。提示会高亮一个尚未归位的格子。</p>
+      <button id="hintBtn" class="secondary">提示</button>
+    </aside>
+    <section class="panel">
+      <h2>残页</h2>
+      <div class="board" id="board"></div>
+    </section>
+    <aside class="panel">
+      <h2>剩余纸片</h2>
+      <div class="tray" id="tray"></div>
+    </aside>
+  </main>
+  <div class="overlay hidden" id="overlay">
+    <div class="modal">
+      <h2 id="modalTitle">修补完成</h2>
+      <p id="modalText"></p>
+      <button id="nextBtn">下一关</button>
+    </div>
+  </div>
+  <script>
+    const board = document.querySelector("#board");
+    const tray = document.querySelector("#tray");
+    const levelsEl = document.querySelector("#levels");
+    const overlay = document.querySelector("#overlay");
+    const modalTitle = document.querySelector("#modalTitle");
+    const modalText = document.querySelector("#modalText");
+    const nextBtn = document.querySelector("#nextBtn");
+    const scoreText = document.querySelector("#scoreText");
+    const timeText = document.querySelector("#timeText");
+    const levelText = document.querySelector("#levelText");
+    const bestText = document.querySelector("#bestText");
+    const puzzles = [
+      { cols: 3, rows: 2, text: ["山雨","残卷","归舟","松风","旧墨","灯影"] },
+      { cols: 4, rows: 2, text: ["竹简","秋水","石桥","远钟","青灯","薄纸","行书","残印"] },
+      { cols: 3, rows: 3, text: ["云根","药谱","温火","井泉","纸背","朱批","草堂","夜读","藏印"] },
+      { cols: 4, rows: 3, text: ["海棠","卷首","虫蛀","补纸","墨脉","断栏","夹注","边款","残页","古香","修痕","归档"] },
+      { cols: 5, rows: 3, text: ["金石","拓痕","旧题","飞白","鱼尾","牌记","小篆","暗纹","碑阴","残角","书林","校勘","虫孔","云笺","收束"] }
+    ];
+    let current = 0;
+    let score = 0;
+    let time = 120;
+    let timer = null;
+    let pieces = [];
+    let drag = null;
+    bestText.textContent = localStorage.getItem("zfl27Best") || "0";
+
+    function start(index) {
+      current = index;
+      score = 1000;
+      time = 120 - index * 8;
+      pieces = [];
+      overlay.classList.add("hidden");
+      renderLevels();
+      renderPuzzle();
+      clearInterval(timer);
+      timer = setInterval(() => {
+        time -= 1;
+        score = Math.max(0, score - 1);
+        updateHud();
+        if (time <= 0) finish(false);
+      }, 1000);
+      updateHud();
+    }
+    function renderLevels() {
+      levelsEl.innerHTML = puzzles.map((_, i) => '<button class="'+(i === current ? '' : 'secondary')+'" data-level="'+i+'">第'+(i+1)+'页</button>').join("");
+      document.querySelectorAll("[data-level]").forEach(btn => btn.onclick = () => start(Number(btn.dataset.level)));
+    }
+    function renderPuzzle() {
+      board.innerHTML = "";
+      tray.innerHTML = "";
+      const p = puzzles[current];
+      const cellW = board.clientWidth / p.cols;
+      const cellH = board.clientHeight / p.rows;
+      for (let c = 1; c < p.cols; c++) board.insertAdjacentHTML("beforeend", '<div class="gridline" style="left:'+(c*100/p.cols)+'%;top:0;width:0;height:100%"></div>');
+      for (let r = 1; r < p.rows; r++) board.insertAdjacentHTML("beforeend", '<div class="gridline" style="top:'+(r*100/p.rows)+'%;left:0;height:0;width:100%"></div>');
+      p.text.forEach((label, i) => {
+        const col = i % p.cols;
+        const row = Math.floor(i / p.cols);
+        pieces.push({ id: i, label, col, row, locked: false });
+      });
+      shuffle([...pieces]).forEach((piece, i) => createPiece(piece, i, cellW, cellH));
+    }
+    function createPiece(piece, i, cellW, cellH) {
+      const el = document.createElement("div");
+      el.className = "piece";
+      el.dataset.id = piece.id;
+      el.style.width = Math.floor(cellW - 10) + "px";
+      el.style.height = Math.floor(cellH - 10) + "px";
+      el.style.left = 12 + (i % 2) * (cellW * .72) + "px";
+      el.style.top = 12 + Math.floor(i / 2) * (cellH * .45) + "px";
+      el.innerHTML = piece.label + "<small>残片"+(piece.id+1)+"</small>";
+      tray.appendChild(el);
+      el.addEventListener("pointerdown", event => {
+        if (piece.locked) return;
+        drag = { el, piece, ox: event.offsetX, oy: event.offsetY };
+        el.setPointerCapture(event.pointerId);
+      });
+      el.addEventListener("pointermove", event => {
+        if (!drag || drag.el !== el) return;
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        const parent = target && target.closest("#board") ? board : tray;
+        if (el.parentElement !== parent) parent.appendChild(el);
+        const rect = parent.getBoundingClientRect();
+        el.style.left = event.clientX - rect.left - drag.ox + "px";
+        el.style.top = event.clientY - rect.top - drag.oy + "px";
+      });
+      el.addEventListener("pointerup", () => tryDrop(el, piece));
+    }
+    function tryDrop(el, piece) {
+      if (!drag) return;
+      drag = null;
+      if (el.parentElement !== board) return;
+      const p = puzzles[current];
+      const cellW = board.clientWidth / p.cols;
+      const cellH = board.clientHeight / p.rows;
+      const targetX = piece.col * cellW + 5;
+      const targetY = piece.row * cellH + 5;
+      const x = parseFloat(el.style.left);
+      const y = parseFloat(el.style.top);
+      if (Math.abs(x - targetX) < 42 && Math.abs(y - targetY) < 42) {
+        el.style.left = targetX + "px";
+        el.style.top = targetY + "px";
+        el.classList.add("locked");
+        piece.locked = true;
+        score += 80;
+        if (pieces.every(item => item.locked)) finish(true);
+      } else {
+        score = Math.max(0, score - 50);
+      }
+      updateHud();
+    }
+    function finish(win) {
+      clearInterval(timer);
+      const best = Math.max(Number(localStorage.getItem("zfl27Best") || 0), score);
+      localStorage.setItem("zfl27Best", best);
+      bestText.textContent = best;
+      modalTitle.textContent = win ? "残页修补完成" : "时间耗尽";
+      modalText.textContent = "本页得分：" + score;
+      nextBtn.textContent = current < puzzles.length - 1 ? "下一页" : "重回第一页";
+      nextBtn.onclick = () => start(current < puzzles.length - 1 ? current + 1 : 0);
+      overlay.classList.remove("hidden");
+    }
+    function updateHud() { levelText.textContent = current + 1; scoreText.textContent = score; timeText.textContent = time; }
+    function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
+    document.querySelector("#hintBtn").onclick = () => {
+      const piece = pieces.find(item => !item.locked);
+      if (!piece) return;
+      const p = puzzles[current];
+      const cellW = board.clientWidth / p.cols;
+      const cellH = board.clientHeight / p.rows;
+      const ghost = document.createElement("div");
+      ghost.className = "ghost";
+      ghost.style.left = piece.col * cellW + 5 + "px";
+      ghost.style.top = piece.row * cellH + 5 + "px";
+      ghost.style.width = cellW - 10 + "px";
+      ghost.style.height = cellH - 10 + "px";
+      ghost.textContent = "提示";
+      board.appendChild(ghost);
+      score = Math.max(0, score - 80);
+      setTimeout(() => ghost.remove(), 900);
+      updateHud();
+    };
+    document.querySelector("#resetBtn").onclick = () => start(current);
+    start(0);
+  </script>
+</body>
+</html>
