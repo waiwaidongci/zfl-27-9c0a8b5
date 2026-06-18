@@ -9,11 +9,12 @@
     body { margin: 0; font-family: Arial, "PingFang SC", sans-serif; background: #efe8dc; color: #2b251d; }
     header { padding: 18px 24px; background: #fffaf0; border-bottom: 1px solid #d8c7ad; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
     h1 { margin: 0; font-size: 26px; }
+    h2 { margin: 0 0 10px; font-size: 18px; color: #5a3d20; }
     button { border: 0; border-radius: 8px; padding: 10px 14px; background: #8a4f2d; color: #fff; font-weight: 800; cursor: pointer; }
     button.secondary { background: #6b6b55; }
-    .app { display: grid; grid-template-columns: 260px 1fr 280px; gap: 16px; padding: 16px; }
+    button:disabled { background: #b8a994; cursor: not-allowed; opacity: 0.7; }
+    .app { display: grid; grid-template-columns: 300px 1fr 280px; gap: 16px; padding: 16px; }
     .panel { background: #fffaf0; border: 1px solid #d8c7ad; border-radius: 8px; padding: 14px; }
-    .levels { display: grid; gap: 8px; }
     .stats { display: grid; gap: 8px; color: #6c5d4b; }
     .board { position: relative; width: min(100%, 620px); aspect-ratio: 4 / 3; margin: 0 auto; background: #d9caa8; border: 12px solid #9a7a4c; border-radius: 8px; overflow: hidden; }
     .gridline { position: absolute; border: 1px dashed rgba(75,55,35,.25); pointer-events: none; }
@@ -21,9 +22,32 @@
     .piece.locked { cursor: default; box-shadow: inset 0 0 0 2px rgba(58,118,83,.7); }
     .tray { min-height: 360px; position: relative; }
     .piece small { display: block; font-weight: 400; color: #8b765d; margin-top: 4px; }
-    .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(45,32,20,.35); }
+    .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(45,32,20,.35); z-index: 100; }
     .modal { width: min(430px, calc(100% - 28px)); background: #fffaf0; border: 1px solid #d8c7ad; border-radius: 8px; padding: 22px; }
+    .modal .result-grid { display: grid; gap: 10px; margin: 14px 0; }
+    .modal .result-row { display: flex; justify-content: space-between; padding: 6px 10px; background: #f5edd9; border-radius: 6px; }
+    .modal .result-row span:first-child { color: #6c5d4b; }
+    .modal .result-row span:last-child { font-weight: 800; color: #5a3d20; }
     .hidden { display: none; }
+
+    .progress-book { display: grid; gap: 10px; }
+    .level-card { border: 1px solid #d8c7ad; border-radius: 8px; padding: 10px 12px; background: #fdf6e6; cursor: pointer; transition: all 0.2s; position: relative; }
+    .level-card:hover:not(.locked) { border-color: #8a4f2d; background: #fff9e8; transform: translateY(-1px); }
+    .level-card.current { border-color: #8a4f2d; background: #fff2df; box-shadow: 0 0 0 2px rgba(138,79,45,0.2); }
+    .level-card.locked { opacity: 0.55; cursor: not-allowed; background: #e8dfcd; }
+    .level-card .level-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .level-card .level-name { font-weight: 800; color: #5a3d20; }
+    .level-card .level-badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+    .level-card .level-badge.done { background: #3a7653; color: #fff; }
+    .level-card .level-badge.current-badge { background: #8a4f2d; color: #fff; }
+    .level-card .level-badge.locked-badge { background: #8b765d; color: #fff; }
+    .level-card .level-stats { display: grid; gap: 3px; font-size: 13px; color: #6c5d4b; }
+    .level-card .level-stats div { display: flex; justify-content: space-between; }
+    .level-card .level-stats .val { font-weight: 700; color: #5a3d20; }
+    .level-card .hint-used { color: #c0683c; }
+    .level-card .no-record { color: #a08d73; font-style: italic; font-size: 12px; }
+    .lock-icon { font-size: 16px; }
+
     @media (max-width: 950px) { .app { grid-template-columns: 1fr; } .tray { min-height: 220px; } header { display: block; } }
   </style>
 </head>
@@ -34,17 +58,17 @@
   </header>
   <main class="app">
     <aside class="panel">
-      <h2>关卡</h2>
-      <div class="levels" id="levels"></div>
-      <h2>记录</h2>
+      <h2>进度册</h2>
+      <div class="progress-book" id="levels"></div>
+      <h2 style="margin-top:16px">本关状态</h2>
       <div class="stats">
-        <div>当前：<b id="levelText">1</b></div>
-        <div>分数：<b id="scoreText">0</b></div>
-        <div>剩余时间：<b id="timeText">120</b></div>
-        <div>最佳：<b id="bestText">0</b></div>
+        <div>当前残页：<b id="levelText">1</b></div>
+        <div>当前分数：<b id="scoreText">0</b></div>
+        <div>剩余时间：<b id="timeText">120</b>秒</div>
+        <div>本页最佳得分：<b id="bestText">0</b></div>
       </div>
-      <p>纸片靠近正确格子会自动吸附。提示会高亮一个尚未归位的格子。</p>
-      <button id="hintBtn" class="secondary">提示</button>
+      <p style="margin-top:12px">纸片靠近正确格子会自动吸附。提示会高亮一个尚未归位的格子（使用提示会扣分）。</p>
+      <button id="hintBtn" class="secondary">使用提示</button>
     </aside>
     <section class="panel">
       <h2>残页</h2>
@@ -58,8 +82,11 @@
   <div class="overlay hidden" id="overlay">
     <div class="modal">
       <h2 id="modalTitle">修补完成</h2>
-      <p id="modalText"></p>
-      <button id="nextBtn">下一关</button>
+      <div class="result-grid" id="modalResult"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button id="retryBtn" class="secondary">重玩本关</button>
+        <button id="nextBtn">下一关</button>
+      </div>
     </div>
   </div>
   <script>
@@ -68,12 +95,14 @@
     const levelsEl = document.querySelector("#levels");
     const overlay = document.querySelector("#overlay");
     const modalTitle = document.querySelector("#modalTitle");
-    const modalText = document.querySelector("#modalText");
+    const modalResult = document.querySelector("#modalResult");
     const nextBtn = document.querySelector("#nextBtn");
+    const retryBtn = document.querySelector("#retryBtn");
     const scoreText = document.querySelector("#scoreText");
     const timeText = document.querySelector("#timeText");
     const levelText = document.querySelector("#levelText");
     const bestText = document.querySelector("#bestText");
+
     const puzzles = [
       { cols: 3, rows: 2, text: ["山雨","残卷","归舟","松风","旧墨","灯影"] },
       { cols: 4, rows: 2, text: ["竹简","秋水","石桥","远钟","青灯","薄纸","行书","残印"] },
@@ -81,18 +110,46 @@
       { cols: 4, rows: 3, text: ["海棠","卷首","虫蛀","补纸","墨脉","断栏","夹注","边款","残页","古香","修痕","归档"] },
       { cols: 5, rows: 3, text: ["金石","拓痕","旧题","飞白","鱼尾","牌记","小篆","暗纹","碑阴","残角","书林","校勘","虫孔","云笺","收束"] }
     ];
+
+    const STORAGE_KEY = "zfl27Progress";
+    let progress = loadProgress();
     let current = 0;
     let score = 0;
-    let time = 120;
+    let time = 0;
+    let totalTime = 0;
     let timer = null;
     let pieces = [];
     let drag = null;
-    bestText.textContent = localStorage.getItem("zfl27Best") || "0";
+    let hintUsed = false;
+
+    function loadProgress() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const data = JSON.parse(saved);
+          if (Array.isArray(data) && data.length === puzzles.length) return data;
+        }
+      } catch (e) {}
+      return puzzles.map((_, i) => ({
+        completed: false,
+        bestScore: 0,
+        bestTime: null,
+        hintUsed: false,
+        unlocked: i === 0
+      }));
+    }
+
+    function saveProgress() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    }
 
     function start(index) {
+      if (!progress[index].unlocked) return;
       current = index;
       score = 1000;
-      time = 120 - index * 8;
+      totalTime = 120 - index * 8;
+      time = totalTime;
+      hintUsed = false;
       pieces = [];
       overlay.classList.add("hidden");
       renderLevels();
@@ -106,10 +163,55 @@
       }, 1000);
       updateHud();
     }
+
     function renderLevels() {
-      levelsEl.innerHTML = puzzles.map((_, i) => '<button class="'+(i === current ? '' : 'secondary')+'" data-level="'+i+'">第'+(i+1)+'页</button>').join("");
-      document.querySelectorAll("[data-level]").forEach(btn => btn.onclick = () => start(Number(btn.dataset.level)));
+      levelsEl.innerHTML = puzzles.map((_, i) => {
+        const p = progress[i];
+        const isCurrent = i === current;
+        let badge = "";
+        let cardClass = "";
+        if (!p.unlocked) {
+          badge = '<span class="level-badge locked-badge"><span class="lock-icon">🔒</span> 未解锁</span>';
+          cardClass = "locked";
+        } else if (p.completed) {
+          badge = '<span class="level-badge done">✓ 已完成</span>';
+        } else if (isCurrent) {
+          badge = '<span class="level-badge current-badge">进行中</span>';
+        } else {
+          badge = '<span class="level-badge" style="background:#d8c7ad;color:#5a3d20">待挑战</span>';
+        }
+        if (isCurrent && p.unlocked) cardClass += " current";
+
+        let statsHtml = "";
+        if (!p.unlocked) {
+          statsHtml = '<div class="no-record">完成前一页后解锁</div>';
+        } else if (!p.completed) {
+          statsHtml = '<div class="no-record">尚未完成</div>';
+        } else {
+          statsHtml = '<div class="level-stats">' +
+            '<div><span>最佳得分</span><span class="val">' + p.bestScore + '</span></div>' +
+            '<div><span>最快用时</span><span class="val">' + (p.bestTime !== null ? p.bestTime + '秒' : '-') + '</span></div>' +
+            '<div><span>使用提示</span><span class="val ' + (p.hintUsed ? 'hint-used' : '') + '">' + (p.hintUsed ? '是' : '否') + '</span></div>' +
+          '</div>';
+        }
+
+        return '<div class="level-card ' + cardClass + '" data-level="' + i + '">' +
+          '<div class="level-header">' +
+            '<span class="level-name">第' + (i + 1) + '页</span>' +
+            badge +
+          '</div>' +
+          statsHtml +
+        '</div>';
+      }).join("");
+
+      document.querySelectorAll(".level-card").forEach(card => {
+        card.onclick = () => {
+          const idx = Number(card.dataset.level);
+          if (progress[idx].unlocked) start(idx);
+        };
+      });
     }
+
     function renderPuzzle() {
       board.innerHTML = "";
       tray.innerHTML = "";
@@ -125,6 +227,7 @@
       });
       shuffle([...pieces]).forEach((piece, i) => createPiece(piece, i, cellW, cellH));
     }
+
     function createPiece(piece, i, cellW, cellH) {
       const el = document.createElement("div");
       el.className = "piece";
@@ -151,6 +254,7 @@
       });
       el.addEventListener("pointerup", () => tryDrop(el, piece));
     }
+
     function tryDrop(el, piece) {
       if (!drag) return;
       drag = null;
@@ -174,22 +278,80 @@
       }
       updateHud();
     }
+
     function finish(win) {
       clearInterval(timer);
-      const best = Math.max(Number(localStorage.getItem("zfl27Best") || 0), score);
-      localStorage.setItem("zfl27Best", best);
-      bestText.textContent = best;
-      modalTitle.textContent = win ? "残页修补完成" : "时间耗尽";
-      modalText.textContent = "本页得分：" + score;
-      nextBtn.textContent = current < puzzles.length - 1 ? "下一页" : "重回第一页";
-      nextBtn.onclick = () => start(current < puzzles.length - 1 ? current + 1 : 0);
+      const usedTime = totalTime - time;
+
+      if (win) {
+        const prev = progress[current];
+        const newBestScore = Math.max(prev.bestScore, score);
+        const newBestTime = (prev.bestTime === null || usedTime < prev.bestTime) ? usedTime : prev.bestTime;
+        progress[current] = {
+          completed: true,
+          bestScore: newBestScore,
+          bestTime: newBestTime,
+          hintUsed: prev.hintUsed || hintUsed,
+          unlocked: true
+        };
+        if (current + 1 < puzzles.length) {
+          progress[current + 1].unlocked = true;
+        }
+        saveProgress();
+      }
+
+      renderLevels();
+      updateHud();
+
+      modalTitle.textContent = win ? "🎉 残页修补完成" : "⏰ 时间耗尽";
+
+      let rows = '<div class="result-row"><span>本页得分</span><span>' + score + '</span></div>';
+      if (win) {
+        rows += '<div class="result-row"><span>用时</span><span>' + usedTime + '秒</span></div>';
+        rows += '<div class="result-row"><span>使用提示</span><span>' + (hintUsed ? '是（已记录）' : '否') + '</span></div>';
+        rows += '<div class="result-row"><span>历史最佳得分</span><span>' + progress[current].bestScore + '</span></div>';
+        rows += '<div class="result-row"><span>历史最快用时</span><span>' + (progress[current].bestTime !== null ? progress[current].bestTime + '秒' : '-') + '</span></div>';
+        if (current + 1 < puzzles.length) {
+          rows += '<div class="result-row" style="color:#3a7653"><span>下一页解锁</span><span>✓</span></div>';
+        }
+      } else {
+        rows += '<div class="result-row"><span>使用提示</span><span>' + (hintUsed ? '是' : '否') + '</span></div>';
+      }
+      modalResult.innerHTML = rows;
+
+      if (win && current < puzzles.length - 1) {
+        nextBtn.textContent = "下一页";
+        nextBtn.onclick = () => start(current + 1);
+      } else if (win) {
+        nextBtn.textContent = "全部完成！重回第一页";
+        nextBtn.onclick = () => start(0);
+      } else {
+        nextBtn.textContent = "再试一次";
+        nextBtn.onclick = () => start(current);
+      }
+      retryBtn.onclick = () => start(current);
       overlay.classList.remove("hidden");
     }
-    function updateHud() { levelText.textContent = current + 1; scoreText.textContent = score; timeText.textContent = time; }
-    function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
+
+    function updateHud() {
+      levelText.textContent = current + 1;
+      scoreText.textContent = score;
+      timeText.textContent = time;
+      bestText.textContent = progress[current].bestScore || 0;
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
     document.querySelector("#hintBtn").onclick = () => {
       const piece = pieces.find(item => !item.locked);
       if (!piece) return;
+      hintUsed = true;
       const p = puzzles[current];
       const cellW = board.clientWidth / p.cols;
       const cellH = board.clientHeight / p.rows;
@@ -205,8 +367,18 @@
       setTimeout(() => ghost.remove(), 900);
       updateHud();
     };
+
     document.querySelector("#resetBtn").onclick = () => start(current);
-    start(0);
+
+    let startIdx = 0;
+    for (let i = puzzles.length - 1; i >= 0; i--) {
+      if (progress[i].unlocked && !progress[i].completed) {
+        startIdx = i;
+        break;
+      }
+    }
+    if (!progress[startIdx].unlocked) startIdx = 0;
+    start(startIdx);
   </script>
 </body>
 </html>
