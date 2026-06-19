@@ -146,13 +146,20 @@ const AppGame = (() => {
     stopDailyAutosave();
     stopLevelAutosave();
 
+    const opts = options || {};
     const oldPuzzleId = currentPuzzle ? currentPuzzle.id : null;
     const newPuzzle = AppData.getPuzzleByIndex(index);
     const newPuzzleId = newPuzzle ? newPuzzle.id : null;
-    const isSwitchingDifferentLevel = oldPuzzleId !== null && oldPuzzleId !== newPuzzleId;
-    if (isSwitchingDifferentLevel) {
-      const oldSaveKey = oldPuzzleId ? (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId) : null;
-      if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+
+    if (oldPuzzleId !== null) {
+      const oldSaveKey = oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId);
+      const isSwitchingDifferentLevel = oldPuzzleId !== newPuzzleId;
+      if (isSwitchingDifferentLevel) {
+        if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+      } else if (opts.forceNew === true) {
+        const currentSaveKey = newPuzzleId ? (LEVEL_SAVE_KEY_PREFIX + newPuzzleId) : null;
+        if (currentSaveKey) localStorage.removeItem(currentSaveKey);
+      }
     }
 
     currentIndex = index;
@@ -163,7 +170,6 @@ const AppGame = (() => {
     if (onLevelsRefresh) onLevelsRefresh();
     renderPuzzle();
 
-    const opts = options || {};
     const tryRestore = opts.forceNew !== true;
     let saveKey = null;
     if (tryRestore) {
@@ -179,28 +185,57 @@ const AppGame = (() => {
     updateHud();
   }
 
+  function hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash).toString(36);
+  }
+
+  function getTempPuzzleSaveKey(puzzle) {
+    const signature = [
+      puzzle.name || "",
+      puzzle.cols,
+      puzzle.rows,
+      (puzzle.text || []).join("|"),
+      (puzzle.theme ? JSON.stringify(puzzle.theme) : "")
+    ].join("__");
+    return TEMP_SAVE_KEY + "_" + hashString(signature);
+  }
+
   function startTemp(puzzle, options) {
     stopDailyAutosave();
     stopLevelAutosave();
 
+    const opts = options || {};
     const oldPuzzleId = currentPuzzle ? currentPuzzle.id : null;
-    const isSwitchingDifferentLevel = oldPuzzleId !== null && oldPuzzleId !== "temp";
-    if (isSwitchingDifferentLevel) {
-      const oldSaveKey = oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId);
-      if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+    const newTempSaveKey = getTempPuzzleSaveKey(puzzle);
+    const newTempId = "temp_" + hashString([puzzle.name || "temp", Date.now()].join("_"));
+
+    if (oldPuzzleId !== null && !isDailyMode) {
+      const oldSaveKey = oldPuzzleId === "temp"
+        ? (currentPuzzle && currentPuzzle._saveKey ? currentPuzzle._saveKey : TEMP_SAVE_KEY)
+        : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId);
+      const isSwitchingDifferentTemp = oldSaveKey !== newTempSaveKey;
+      if (isSwitchingDifferentTemp) {
+        if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+      } else if (opts.forceNew === true) {
+        localStorage.removeItem(newTempSaveKey);
+      }
     }
 
     currentIndex = -1;
     isTempMode = true;
     isDailyMode = false;
-    currentPuzzle = { ...puzzle, id: "temp", custom: true };
+    currentPuzzle = { ...puzzle, id: newTempId, custom: true, _saveKey: newTempSaveKey };
     initGameState();
     if (onLevelsRefresh) onLevelsRefresh();
     renderPuzzle();
 
-    const opts = options || {};
     const tryRestore = opts.forceNew !== true;
-    const savedState = tryRestore ? loadLevelSave(TEMP_SAVE_KEY) : null;
+    const savedState = tryRestore ? loadLevelSave(newTempSaveKey) : null;
     if (savedState) {
       restoreGameState(savedState);
     }
@@ -220,9 +255,15 @@ const AppGame = (() => {
   function startDaily(puzzle, restoreState) {
     stopLevelAutosave();
 
-    const oldPuzzleId = currentPuzzle ? currentPuzzle.id : null;
-    if (oldPuzzleId !== null && !isDailyMode) {
-      const oldSaveKey = oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId);
+    if (currentPuzzle && !isDailyMode) {
+      let oldSaveKey = null;
+      if (currentPuzzle._saveKey) {
+        oldSaveKey = currentPuzzle._saveKey;
+      } else if (currentPuzzle.id === "temp") {
+        oldSaveKey = TEMP_SAVE_KEY;
+      } else if (currentPuzzle.id) {
+        oldSaveKey = LEVEL_SAVE_KEY_PREFIX + currentPuzzle.id;
+      }
       if (oldSaveKey) localStorage.removeItem(oldSaveKey);
     }
 
@@ -300,7 +341,12 @@ const AppGame = (() => {
 
   function getLevelSaveKey() {
     if (isDailyMode) return null;
-    if (isTempMode) return TEMP_SAVE_KEY;
+    if (isTempMode) {
+      if (currentPuzzle && currentPuzzle._saveKey) {
+        return currentPuzzle._saveKey;
+      }
+      return TEMP_SAVE_KEY;
+    }
     if (currentPuzzle && currentPuzzle.id) {
       return LEVEL_SAVE_KEY_PREFIX + currentPuzzle.id;
     }
@@ -400,7 +446,11 @@ const AppGame = (() => {
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && (key.startsWith(LEVEL_SAVE_KEY_PREFIX) || key === TEMP_SAVE_KEY)) {
+      if (key && (
+          key.startsWith(LEVEL_SAVE_KEY_PREFIX) ||
+          key === TEMP_SAVE_KEY ||
+          key.startsWith(TEMP_SAVE_KEY + "_")
+      )) {
         keysToRemove.push(key);
       }
     }
@@ -1048,9 +1098,15 @@ const AppGame = (() => {
     return isDailyMode;
   }
 
+  function saveKeyboardState() {
+    if (isDailyMode) return;
+    saveLevelState();
+  }
+
   function activateKeyboardMode() {
     keyboardMode = true;
     body.classList.add("keyboard-mode");
+    saveKeyboardState();
   }
 
   function clearKeyboardHighlights() {
@@ -1101,6 +1157,7 @@ const AppGame = (() => {
       focusedTrayIndex = (focusedTrayIndex - 1 + unlockedPieces.length) % unlockedPieces.length;
     }
     updateKeyboardHighlights();
+    saveKeyboardState();
   }
 
   function moveFocusBoard(dx, dy) {
@@ -1110,6 +1167,7 @@ const AppGame = (() => {
     focusedCell.col = newCol;
     focusedCell.row = newRow;
     updateKeyboardHighlights();
+    saveKeyboardState();
   }
 
   function selectPieceByKeyboard() {
@@ -1126,6 +1184,7 @@ const AppGame = (() => {
         focusedCell.row = piece.row;
       }
       updateKeyboardHighlights();
+      saveKeyboardState();
     }
   }
 
@@ -1147,12 +1206,14 @@ const AppGame = (() => {
     drag = { el, piece: selectedPiece };
     tryDrop(el, selectedPiece);
     updateKeyboardHighlights();
+    saveKeyboardState();
   }
 
   function cancelSelection() {
     clearSelectedPiece();
     focusMode = "tray";
     updateKeyboardHighlights();
+    saveKeyboardState();
   }
 
   function handleKeyDown(event) {
