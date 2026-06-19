@@ -6,6 +6,7 @@ const LevelPack = (() => {
   const CUSTOM_KEY = "zfl27CustomPuzzles";
 
   const REQUIRED_PUZZLE_FIELDS = ["name", "cols", "rows", "text", "theme"];
+  const REQUIRED_THEME_FIELDS = ["paper", "ink", "border", "table"];
 
   const DEFAULT_PUZZLE = {
     timeLimit: 120,
@@ -16,6 +17,13 @@ const LevelPack = (() => {
     initialRotationScrambled: false,
     initialFlipScrambled: false,
     availableTools: ["zoom", "edgeAlign"]
+  };
+
+  const DEFAULT_THEME = {
+    paper: "xuanzhi",
+    ink: "mohei",
+    border: "none",
+    table: "wood"
   };
 
   function getAppVersion() {
@@ -110,6 +118,11 @@ const LevelPack = (() => {
     const errors = [];
     const warnings = [];
 
+    if (puzzle == null || typeof puzzle !== "object" || Array.isArray(puzzle)) {
+      errors.push("puzzle 必须是非空对象");
+      return { valid: false, errors, warnings };
+    }
+
     for (const field of REQUIRED_PUZZLE_FIELDS) {
       if (!(field in puzzle)) {
         errors.push("缺少必填字段: " + field);
@@ -119,6 +132,9 @@ const LevelPack = (() => {
 
     if (typeof puzzle.name !== "string" || !puzzle.name.trim()) {
       errors.push("关卡名称不能为空");
+    }
+    if (typeof puzzle.name === "string" && puzzle.name.length > 50) {
+      warnings.push("关卡名称超过 50 字符，可能显示不全");
     }
 
     if (typeof puzzle.cols !== "number" || puzzle.cols < 2 || puzzle.cols > 6 || !Number.isInteger(puzzle.cols)) {
@@ -131,52 +147,95 @@ const LevelPack = (() => {
     if (!Array.isArray(puzzle.text)) {
       errors.push("text 必须是数组");
     } else {
-      const expected = (puzzle.cols || 0) * (puzzle.rows || 0);
-      if (puzzle.text.length !== expected) {
+      const expected = (typeof puzzle.cols === "number" && typeof puzzle.rows === "number")
+        ? puzzle.cols * puzzle.rows : 0;
+      if (expected > 0 && puzzle.text.length !== expected) {
         errors.push("text 数组长度 (" + puzzle.text.length + ") 与格子总数 (" + expected + ") 不匹配");
       }
-      if (!puzzle.text.every(t => typeof t === "string" && t.trim().length > 0)) {
-        errors.push("所有残片文字不能为空");
+      for (let i = 0; i < puzzle.text.length; i++) {
+        if (typeof puzzle.text[i] !== "string" || !puzzle.text[i].trim()) {
+          errors.push("text[" + i + "] 不能为空字符串");
+          break;
+        }
       }
     }
 
-    if (!puzzle.theme || typeof puzzle.theme !== "object") {
-      errors.push("theme 必须是对象");
+    if (!puzzle.theme || typeof puzzle.theme !== "object" || Array.isArray(puzzle.theme)) {
+      errors.push("theme 必须是非空对象");
     } else {
-      if (!getAvailablePapers().includes(puzzle.theme.paper)) {
-        errors.push("未知的纸张类型: " + puzzle.theme.paper);
+      for (const tf of REQUIRED_THEME_FIELDS) {
+        if (!(tf in puzzle.theme)) {
+          errors.push("theme 缺少必填字段: " + tf);
+        }
       }
-      if (!getAvailableInks().includes(puzzle.theme.ink)) {
-        errors.push("未知的墨色: " + puzzle.theme.ink);
+      if (!errors.some(e => e.includes("theme 缺少必填字段: paper"))) {
+        if (puzzle.theme.paper !== undefined && !getAvailablePapers().includes(puzzle.theme.paper)) {
+          errors.push("未知的纸张类型: " + puzzle.theme.paper);
+        }
       }
-      if (!getAvailableBorders().includes(puzzle.theme.border)) {
+      if (!errors.some(e => e.includes("theme 缺少必填字段: ink"))) {
+        if (puzzle.theme.ink !== undefined && !getAvailableInks().includes(puzzle.theme.ink)) {
+          errors.push("未知的墨色: " + puzzle.theme.ink);
+        }
+      }
+      if (puzzle.theme.border !== undefined && !getAvailableBorders().includes(puzzle.theme.border)) {
         warnings.push("未知的边框样式: " + puzzle.theme.border + "，将使用默认值");
       }
-      if (!getAvailableTables().includes(puzzle.theme.table)) {
+      if (puzzle.theme.table !== undefined && !getAvailableTables().includes(puzzle.theme.table)) {
         warnings.push("未知的台面类型: " + puzzle.theme.table + "，将使用默认值");
       }
     }
 
-    if ("timeLimit" in puzzle && (typeof puzzle.timeLimit !== "number" || puzzle.timeLimit < 10 || puzzle.timeLimit > 600)) {
-      warnings.push("限时参数异常，将使用默认值 120");
-    }
-    if ("hintPenalty" in puzzle && (typeof puzzle.hintPenalty !== "number" || puzzle.hintPenalty < 0 || puzzle.hintPenalty > 500)) {
-      warnings.push("提示扣分异常，将使用默认值 80");
-    }
-    if ("scatterRule" in puzzle && !getAvailableScatterRules().includes(puzzle.scatterRule)) {
-      warnings.push("散落方式未知，将使用默认值 random");
-    }
-
-    if (puzzle.initialRotationScrambled) {
-      const hasRotate = (puzzle.availableTools || []).some(t => t === "rotateCw" || t === "rotateCcw");
-      if (!hasRotate) {
-        warnings.push("启用了初始旋转打乱但缺少旋转工具");
+    if ("timeLimit" in puzzle) {
+      if (typeof puzzle.timeLimit !== "number" || !Number.isFinite(puzzle.timeLimit) || puzzle.timeLimit < 10 || puzzle.timeLimit > 600) {
+        errors.push("限时 timeLimit 必须是 10-600 之间的数值");
       }
     }
-    if (puzzle.initialFlipScrambled) {
-      const hasFlip = (puzzle.availableTools || []).includes("flip");
+    if ("hintPenalty" in puzzle) {
+      if (typeof puzzle.hintPenalty !== "number" || !Number.isFinite(puzzle.hintPenalty) || puzzle.hintPenalty < 0 || puzzle.hintPenalty > 500) {
+        errors.push("提示扣分 hintPenalty 必须是 0-500 之间的数值");
+      }
+    }
+    if ("scatterRule" in puzzle && typeof puzzle.scatterRule === "string" && !getAvailableScatterRules().includes(puzzle.scatterRule)) {
+      warnings.push("散落方式未知: " + puzzle.scatterRule + "，将使用默认值 random");
+    }
+
+    if (puzzle.enableRotation !== undefined && typeof puzzle.enableRotation !== "boolean") {
+      warnings.push("enableRotation 应为布尔值，将使用默认值 false");
+    }
+    if (puzzle.enableFlip !== undefined && typeof puzzle.enableFlip !== "boolean") {
+      warnings.push("enableFlip 应为布尔值，将使用默认值 false");
+    }
+    if (puzzle.initialRotationScrambled !== undefined && typeof puzzle.initialRotationScrambled !== "boolean") {
+      warnings.push("initialRotationScrambled 应为布尔值，将使用默认值 false");
+    }
+    if (puzzle.initialFlipScrambled !== undefined && typeof puzzle.initialFlipScrambled !== "boolean") {
+      warnings.push("initialFlipScrambled 应为布尔值，将使用默认值 false");
+    }
+
+    if ("availableTools" in puzzle) {
+      if (!Array.isArray(puzzle.availableTools)) {
+        warnings.push("availableTools 应为数组，将使用默认工具集");
+      } else {
+        const validTools = puzzle.availableTools.filter(t => typeof t === "string" && getAvailableTools().includes(t));
+        if (validTools.length === 0) {
+          warnings.push("availableTools 中无有效工具，将使用默认工具集");
+        }
+      }
+    }
+
+    if (puzzle.initialRotationScrambled === true) {
+      const tools = Array.isArray(puzzle.availableTools) ? puzzle.availableTools : [];
+      const hasRotate = tools.some(t => t === "rotateCw" || t === "rotateCcw");
+      if (!hasRotate) {
+        errors.push("启用了初始旋转打乱但缺少旋转工具，玩家无法修正方向");
+      }
+    }
+    if (puzzle.initialFlipScrambled === true) {
+      const tools = Array.isArray(puzzle.availableTools) ? puzzle.availableTools : [];
+      const hasFlip = tools.includes("flip");
       if (!hasFlip) {
-        warnings.push("启用了初始翻面打乱但缺少翻面工具");
+        errors.push("启用了初始翻面打乱但缺少翻面工具，玩家无法修正翻面");
       }
     }
 
@@ -185,51 +244,153 @@ const LevelPack = (() => {
 
   function validateProgress(progress) {
     const errors = [];
-    if (!progress || typeof progress !== "object") {
-      return { valid: false, errors: ["progress 必须是对象"] };
+    const warnings = [];
+
+    if (progress == null || typeof progress !== "object" || Array.isArray(progress)) {
+      return { valid: false, errors: ["progress 必须是非空对象"], warnings: [] };
     }
-    return { valid: true, errors, warnings: [] };
+
+    if ("completed" in progress && typeof progress.completed !== "boolean") {
+      errors.push("progress.completed 必须是布尔值");
+    }
+    if ("bestScore" in progress) {
+      if (typeof progress.bestScore !== "number" || !Number.isFinite(progress.bestScore) || progress.bestScore < 0) {
+        errors.push("progress.bestScore 必须是非负数值");
+      }
+    }
+    if ("bestTime" in progress && progress.bestTime !== null) {
+      if (typeof progress.bestTime !== "number" || !Number.isFinite(progress.bestTime) || progress.bestTime < 0) {
+        errors.push("progress.bestTime 必须是非负数值或 null");
+      }
+    }
+    if ("hintUsed" in progress && typeof progress.hintUsed !== "boolean") {
+      errors.push("progress.hintUsed 必须是布尔值");
+    }
+    if ("unlocked" in progress && typeof progress.unlocked !== "boolean") {
+      errors.push("progress.unlocked 必须是布尔值");
+    }
+    if ("colophon" in progress && progress.colophon !== null && progress.colophon !== undefined) {
+      if (typeof progress.colophon !== "string") {
+        errors.push("progress.colophon 必须是字符串或 null");
+      } else if (progress.colophon.length > 500) {
+        warnings.push("progress.colophon 超过 500 字符，将被截断");
+      }
+    }
+
+    return { valid: errors.length === 0, errors, warnings };
   }
 
   function validateColophon(colophon) {
     if (colophon == null) return { valid: true, errors: [], warnings: [] };
     if (typeof colophon !== "string") {
-      return { valid: false, errors: ["colophon 必须是字符串"] };
+      return { valid: false, errors: ["colophon 必须是字符串"], warnings: [] };
+    }
+    if (colophon.length > 500) {
+      return { valid: true, errors: [], warnings: ["colophon 超过 500 字符，将被截断"] };
     }
     return { valid: true, errors: [], warnings: [] };
   }
 
-  function normalizePuzzle(raw) {
-    const normalized = { ...DEFAULT_PUZZLE, ...raw };
-    if (!getAvailableBorders().includes(normalized.theme.border)) {
-      normalized.theme.border = "none";
-    }
-    if (!getAvailableTables().includes(normalized.theme.table)) {
-      normalized.theme.table = "base";
-    }
-    if (!getAvailableScatterRules().includes(normalized.scatterRule)) {
-      normalized.scatterRule = "random";
-    }
-    if (typeof normalized.timeLimit !== "number" || normalized.timeLimit < 10 || normalized.timeLimit > 600) {
-      normalized.timeLimit = 120;
-    }
-    if (typeof normalized.hintPenalty !== "number" || normalized.hintPenalty < 0 || normalized.hintPenalty > 500) {
-      normalized.hintPenalty = 80;
-    }
-    if (!Array.isArray(normalized.availableTools)) {
-      normalized.availableTools = ["zoom", "edgeAlign"];
-    } else {
-      normalized.availableTools = normalized.availableTools.filter(t => getAvailableTools().includes(t));
-    }
-    normalized.text = normalized.text.map(String);
-    normalized.cols = Number(normalized.cols);
-    normalized.rows = Number(normalized.rows);
-    normalized.theme = {
-      paper: normalized.theme.paper,
-      ink: normalized.theme.ink,
-      border: normalized.theme.border,
-      table: normalized.theme.table
+  function validateLevel(level, idx) {
+    const result = {
+      index: idx,
+      puzzleErrors: [],
+      puzzleWarnings: [],
+      progressErrors: [],
+      progressWarnings: [],
+      colophonErrors: [],
+      colophonWarnings: [],
+      valid: true,
+      puzzleName: "关卡 " + (idx + 1)
     };
+
+    if (level == null || typeof level !== "object" || Array.isArray(level)) {
+      result.puzzleErrors.push("level 条目必须是非空对象");
+      result.valid = false;
+      return result;
+    }
+
+    if (!level.puzzle) {
+      result.puzzleErrors.push("缺少 puzzle 字段");
+      result.valid = false;
+      return result;
+    }
+
+    const pv = validatePuzzle(level.puzzle);
+    result.puzzleErrors = pv.errors;
+    result.puzzleWarnings = pv.warnings;
+    if (typeof level.puzzle.name === "string" && level.puzzle.name.trim()) {
+      result.puzzleName = level.puzzle.name;
+    }
+    if (!pv.valid) result.valid = false;
+
+    if (level.progress != null) {
+      const prv = validateProgress(level.progress);
+      result.progressErrors = prv.errors;
+      result.progressWarnings = prv.warnings;
+      if (!prv.valid) result.valid = false;
+    }
+
+    if (level.colophon != null) {
+      const cv = validateColophon(level.colophon);
+      result.colophonErrors = cv.errors;
+      result.colophonWarnings = cv.warnings;
+      if (!cv.valid) result.valid = false;
+    }
+
+    return result;
+  }
+
+  function normalizePuzzle(raw) {
+    if (raw == null || typeof raw !== "object" || Array.isArray(raw)) {
+      return { ...DEFAULT_PUZZLE, name: "未命名", cols: 2, rows: 2, text: ["残片1", "残片2", "残片3", "残片4"], theme: { ...DEFAULT_THEME } };
+    }
+
+    const normalized = { ...DEFAULT_PUZZLE };
+
+    normalized.name = (typeof raw.name === "string" && raw.name.trim()) ? raw.name.trim() : "未命名";
+    normalized.cols = (typeof raw.cols === "number" && Number.isFinite(raw.cols) && Number.isInteger(raw.cols) && raw.cols >= 2 && raw.cols <= 6) ? raw.cols : 3;
+    normalized.rows = (typeof raw.rows === "number" && Number.isFinite(raw.rows) && Number.isInteger(raw.rows) && raw.rows >= 2 && raw.rows <= 5) ? raw.rows : 2;
+
+    if (Array.isArray(raw.text) && raw.text.length === normalized.cols * normalized.rows && raw.text.every(t => typeof t === "string" && t.trim())) {
+      normalized.text = raw.text.map(t => t.trim());
+    } else {
+      normalized.text = [];
+      for (let i = 0; i < normalized.cols * normalized.rows; i++) {
+        normalized.text.push("残片" + (i + 1));
+      }
+    }
+
+    if (raw.theme && typeof raw.theme === "object" && !Array.isArray(raw.theme)) {
+      normalized.theme = {
+        paper: getAvailablePapers().includes(raw.theme.paper) ? raw.theme.paper : DEFAULT_THEME.paper,
+        ink: getAvailableInks().includes(raw.theme.ink) ? raw.theme.ink : DEFAULT_THEME.ink,
+        border: getAvailableBorders().includes(raw.theme.border) ? raw.theme.border : DEFAULT_THEME.border,
+        table: getAvailableTables().includes(raw.theme.table) ? raw.theme.table : DEFAULT_THEME.table
+      };
+    } else {
+      normalized.theme = { ...DEFAULT_THEME };
+    }
+
+    if (typeof raw.timeLimit === "number" && Number.isFinite(raw.timeLimit) && raw.timeLimit >= 10 && raw.timeLimit <= 600) {
+      normalized.timeLimit = raw.timeLimit;
+    }
+    if (typeof raw.hintPenalty === "number" && Number.isFinite(raw.hintPenalty) && raw.hintPenalty >= 0 && raw.hintPenalty <= 500) {
+      normalized.hintPenalty = raw.hintPenalty;
+    }
+    if (typeof raw.scatterRule === "string" && getAvailableScatterRules().includes(raw.scatterRule)) {
+      normalized.scatterRule = raw.scatterRule;
+    }
+    if (typeof raw.enableRotation === "boolean") normalized.enableRotation = raw.enableRotation;
+    if (typeof raw.enableFlip === "boolean") normalized.enableFlip = raw.enableFlip;
+    if (typeof raw.initialRotationScrambled === "boolean") normalized.initialRotationScrambled = raw.initialRotationScrambled;
+    if (typeof raw.initialFlipScrambled === "boolean") normalized.initialFlipScrambled = raw.initialFlipScrambled;
+
+    if (Array.isArray(raw.availableTools)) {
+      const valid = raw.availableTools.filter(t => typeof t === "string" && getAvailableTools().includes(t));
+      normalized.availableTools = valid.length > 0 ? valid : ["zoom", "edgeAlign"];
+    }
+
     return normalized;
   }
 
@@ -272,38 +433,21 @@ const LevelPack = (() => {
       result.fatalErrors.push("缺少 levels 数组");
       return result;
     }
+    if (raw.levels.length === 0) {
+      result.fatalErrors.push("levels 数组为空，没有可导入的关卡");
+      return result;
+    }
 
     raw.levels.forEach((level, idx) => {
-      const levelResult = {
-        index: idx,
-        puzzleErrors: [],
-        puzzleWarnings: [],
-        progressErrors: [],
-        colophonErrors: [],
-        valid: true,
-        puzzleName: level.puzzle ? (level.puzzle.name || "关卡 " + (idx + 1)) : ("关卡 " + (idx + 1))
-      };
-
-      const pv = validatePuzzle(level.puzzle || {});
-      levelResult.puzzleErrors = pv.errors;
-      levelResult.puzzleWarnings = pv.warnings;
-      if (!pv.valid) levelResult.valid = false;
-
-      if (level.progress) {
-        const prv = validateProgress(level.progress);
-        levelResult.progressErrors = prv.errors;
-        if (!prv.valid) levelResult.valid = false;
-      }
-
-      if (level.colophon != null) {
-        const cv = validateColophon(level.colophon);
-        levelResult.colophonErrors = cv.errors;
-        if (!cv.valid) levelResult.valid = false;
-      }
+      const levelResult = validateLevel(level, idx);
 
       result.levelsSummary.push(levelResult);
       levelResult.puzzleErrors.forEach(e => result.levelErrors.push("[" + levelResult.puzzleName + "] " + e));
       levelResult.puzzleWarnings.forEach(w => result.levelWarnings.push("[" + levelResult.puzzleName + "] " + w));
+      levelResult.progressErrors.forEach(e => result.levelErrors.push("[" + levelResult.puzzleName + " 进度] " + e));
+      levelResult.colophonErrors.forEach(e => result.levelErrors.push("[" + levelResult.puzzleName + " 题跋] " + e));
+      levelResult.progressWarnings.forEach(w => result.levelWarnings.push("[" + levelResult.puzzleName + " 进度] " + w));
+      levelResult.colophonWarnings.forEach(w => result.levelWarnings.push("[" + levelResult.puzzleName + " 题跋] " + w));
     });
 
     result.valid = result.fatalErrors.length === 0 && result.levelErrors.length === 0;
@@ -516,13 +660,79 @@ const LevelPack = (() => {
     }
   }
 
+  function preflightValidate(packData, conflictResolutions) {
+    const issues = [];
+
+    if (!packData || !Array.isArray(packData.levels)) {
+      issues.push("关卡包数据结构无效");
+      return issues;
+    }
+
+    const allExisting = AppData.getAllPuzzles();
+    const existingIds = new Set(allExisting.map(p => p.id));
+    const builtinIds = new Set(allExisting.filter(p => !p.custom).map(p => p.id));
+    const reservedNames = new Set(allExisting.map(p => p.name));
+
+    for (let i = 0; i < packData.levels.length; i++) {
+      const level = packData.levels[i];
+      const resolution = conflictResolutions[i] || { action: "copy" };
+
+      if (resolution.action === "skip") continue;
+
+      if (!level || !level.puzzle) {
+        issues.push("关卡 #" + (i + 1) + "：缺少 puzzle 数据");
+        continue;
+      }
+
+      const pv = validatePuzzle(level.puzzle);
+      if (!pv.valid) {
+        issues.push("关卡 #" + (i + 1) + " 「" + (level.puzzle.name || "未命名") + "」：" + pv.errors.join("；"));
+        continue;
+      }
+
+      if (level.progress) {
+        const prv = validateProgress(level.progress);
+        if (!prv.valid) {
+          issues.push("关卡 #" + (i + 1) + " 进度数据无效：" + prv.errors.join("；"));
+        }
+      }
+
+      if (resolution.action === "overwrite" && resolution.targetId) {
+        if (builtinIds.has(resolution.targetId)) {
+          issues.push("关卡 #" + (i + 1) + "：不能覆盖内置关卡 " + resolution.targetId);
+        }
+        if (!existingIds.has(resolution.targetId)) {
+          issues.push("关卡 #" + (i + 1) + "：覆盖目标 " + resolution.targetId + " 不存在");
+        }
+      }
+    }
+
+    return issues;
+  }
+
   async function executeImport(packData, conflictResolutions, onProgress) {
+    const preflightIssues = preflightValidate(packData, conflictResolutions);
+    if (preflightIssues.length > 0) {
+      return {
+        ok: false,
+        stage: "preflight",
+        error: "导入前校验失败，未执行任何写入操作",
+        preflightIssues: preflightIssues,
+        imported: [],
+        skipped: [],
+        errors: preflightIssues.map((msg, i) => ({ index: i, name: "预检", error: msg }))
+      };
+    }
+
     const backupKey = createBackup();
     if (!backupKey) {
       return {
         ok: false,
         stage: "backup",
-        error: "无法创建备份，导入已取消"
+        error: "无法创建备份，导入已取消",
+        imported: [],
+        skipped: [],
+        errors: []
       };
     }
 
@@ -535,6 +745,8 @@ const LevelPack = (() => {
       warnings: []
     };
 
+    let anyWritePerformed = false;
+
     try {
       const allPuzzlesBefore = AppData.getAllPuzzles();
       const allNamesBefore = new Set(allPuzzlesBefore.map(p => p.name));
@@ -543,6 +755,26 @@ const LevelPack = (() => {
         if (onProgress) onProgress(i, packData.levels.length);
         const level = packData.levels[i];
         const resolution = conflictResolutions[i] || { action: "copy" };
+
+        if (!level || !level.puzzle) {
+          report.errors.push({ index: i, name: "关卡 " + (i + 1), error: "缺少 puzzle 数据" });
+          continue;
+        }
+
+        const revalidation = validatePuzzle(level.puzzle);
+        if (!revalidation.valid) {
+          report.errors.push({ index: i, name: level.puzzle.name || "关卡 " + (i + 1), error: "校验失败: " + revalidation.errors.join("; ") });
+          continue;
+        }
+        revalidation.warnings.forEach(w => report.warnings.push("[" + (level.puzzle.name || "关卡 " + (i + 1)) + "] " + w));
+
+        if (level.progress) {
+          const prv = validateProgress(level.progress);
+          if (!prv.valid) {
+            report.errors.push({ index: i, name: level.puzzle.name || "关卡 " + (i + 1), error: "进度校验失败: " + prv.errors.join("; ") });
+            continue;
+          }
+        }
 
         const normalizedPuzzle = normalizePuzzle(level.puzzle);
         delete normalizedPuzzle.id;
@@ -558,25 +790,30 @@ const LevelPack = (() => {
 
           if (resolution.action === "overwrite" && resolution.targetId) {
             const targetPuzzle = allPuzzlesBefore.find(p => p.id === resolution.targetId);
-            if (targetPuzzle && targetPuzzle.custom) {
-              const overwriteData = { ...normalizedPuzzle };
-              AppData.updateCustomPuzzle(resolution.targetId, overwriteData);
-              resultPuzzle = { ...overwriteData, id: resolution.targetId, custom: true };
-              report.imported.push({
-                index: i,
-                action: "overwrite",
-                name: normalizedPuzzle.name,
-                id: resolution.targetId
-              });
-            } else {
-              report.skipped.push({ index: i, name: normalizedPuzzle.name, reason: "目标不是自定义关卡，无法覆盖" });
+            if (!targetPuzzle) {
+              report.errors.push({ index: i, name: normalizedPuzzle.name, error: "覆盖目标不存在" });
               continue;
             }
+            if (!targetPuzzle.custom) {
+              report.errors.push({ index: i, name: normalizedPuzzle.name, error: "不能覆盖内置关卡" });
+              continue;
+            }
+            const overwriteData = { ...normalizedPuzzle };
+            AppData.updateCustomPuzzle(resolution.targetId, overwriteData);
+            resultPuzzle = { ...overwriteData, id: resolution.targetId, custom: true };
+            anyWritePerformed = true;
+            report.imported.push({
+              index: i,
+              action: "overwrite",
+              name: normalizedPuzzle.name,
+              id: resolution.targetId
+            });
           } else {
             if (resolution.action === "copy" && resolution.newName) {
               normalizedPuzzle.name = resolution.newName;
             }
             resultPuzzle = AppData.addCustomPuzzle(normalizedPuzzle);
+            anyWritePerformed = true;
             report.imported.push({
               index: i,
               action: resolution.action || "add",
@@ -591,14 +828,14 @@ const LevelPack = (() => {
           const progressIndex = newAllPuzzles.findIndex(p => p.id === puzzleId);
 
           if (progressIndex >= 0) {
-            if (level.progress) {
+            if (level.progress && typeof level.progress === "object") {
               const progressData = {
-                completed: !!level.progress.completed,
-                bestScore: level.progress.bestScore || 0,
-                bestTime: level.progress.bestTime !== undefined ? level.progress.bestTime : null,
-                hintUsed: !!level.progress.hintUsed,
+                completed: level.progress.completed === true,
+                bestScore: (typeof level.progress.bestScore === "number" && Number.isFinite(level.progress.bestScore) && level.progress.bestScore >= 0) ? level.progress.bestScore : 0,
+                bestTime: (level.progress.bestTime === null || level.progress.bestTime === undefined) ? null : ((typeof level.progress.bestTime === "number" && Number.isFinite(level.progress.bestTime) && level.progress.bestTime >= 0) ? level.progress.bestTime : null),
+                hintUsed: level.progress.hintUsed === true,
                 unlocked: true,
-                colophon: level.colophon || level.progress.colophon || ""
+                colophon: (typeof level.colophon === "string") ? level.colophon.slice(0, 500) : ((typeof level.progress.colophon === "string") ? level.progress.colophon.slice(0, 500) : "")
               };
               AppProgress.updateProgress(progressIndex, progressData);
             } else {
@@ -606,20 +843,18 @@ const LevelPack = (() => {
             }
           }
 
-          if (level.libraryEntry) {
+          if (level.libraryEntry && typeof level.libraryEntry === "object") {
             const libEntry = { ...level.libraryEntry };
             libEntry.puzzleId = puzzleId;
-            if (resultPuzzle) {
-              libEntry.name = resultPuzzle.name;
-              libEntry.text = resultPuzzle.text;
-              libEntry.cols = resultPuzzle.cols;
-              libEntry.rows = resultPuzzle.rows;
-              libEntry.theme = resultPuzzle.theme;
-            }
+            libEntry.name = resultPuzzle.name;
+            libEntry.text = resultPuzzle.text;
+            libEntry.cols = resultPuzzle.cols;
+            libEntry.rows = resultPuzzle.rows;
+            libEntry.theme = resultPuzzle.theme;
             AppLibrary.addOrUpdateEntry(puzzleId, libEntry);
           }
 
-          if (level.note) {
+          if (level.note && typeof level.note === "string") {
             AppLibrary.setNote(puzzleId, level.note);
           }
 
@@ -632,11 +867,15 @@ const LevelPack = (() => {
         }
       }
 
-      if (report.errors.length === packData.levels.length && packData.levels.length > 0) {
+      if (report.errors.length > 0) {
         report.ok = false;
-        if (backupKey) {
-          restoreBackup(backupKey);
-          report.restored = true;
+        if (anyWritePerformed && backupKey) {
+          const restored = restoreBackup(backupKey);
+          report.restored = restored;
+          if (restored) {
+            report.imported = [];
+            report.warnings.push("由于部分关卡导入出错，已回滚到导入前的存档状态");
+          }
         }
       }
 
@@ -654,7 +893,7 @@ const LevelPack = (() => {
         restored: true,
         imported: [],
         skipped: [],
-        errors: []
+        errors: [{ index: -1, name: "系统", error: fatalErr.message || String(fatalErr) }]
       };
     }
   }
@@ -666,12 +905,14 @@ const LevelPack = (() => {
     restoreBackup,
     validatePack,
     validatePuzzle,
+    validateProgress,
     normalizePuzzle,
     buildPack,
     exportPackToFile,
     parsePackFile,
     buildPreview,
     resolveConflictAction,
-    executeImport
+    executeImport,
+    preflightValidate
   };
 })();

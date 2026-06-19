@@ -491,9 +491,28 @@ const LevelPackUI = (() => {
       html += '<div class="lp-error-banner lp-error-fatal">';
       html += '<div class="lp-error-title">导入未成功</div>';
       html += '<div class="lp-error-msg">' + escapeHtml(report.error || "未知错误") + '</div>';
+      if (report.stage === "preflight") {
+        html += '<div class="lp-restored-msg" style="background:#e3f2fd;color:#1565c0">ℹ 预检阶段即发现问题，未执行任何写入操作，存档安全</div>';
+        if (report.preflightIssues && report.preflightIssues.length > 0) {
+          html += '<div style="margin-top:8px">';
+          report.preflightIssues.forEach(msg => {
+            html += '<div class="lp-error-item">✗ ' + escapeHtml(msg) + '</div>';
+          });
+          html += '</div>';
+        }
+      }
       if (report.restored) {
         html += '<div class="lp-restored-msg">✓ 已自动从备份恢复，您的存档未被修改</div>';
       }
+      html += '</div>';
+    }
+
+    if (report.warnings && report.warnings.length > 0) {
+      html += '<div class="lp-error-banner lp-error-warnings" style="margin-bottom:12px">';
+      html += '<div class="lp-error-title">⚠ 警告</div>';
+      report.warnings.forEach(w => {
+        html += '<div class="lp-warning-item">' + escapeHtml(w) + '</div>';
+      });
       html += '</div>';
     }
 
@@ -503,7 +522,17 @@ const LevelPackUI = (() => {
     html += '<div class="lp-stat-card lp-stat-err"><span class="lp-stat-num">' + report.errors.length + '</span><span class="lp-stat-label">出错</span></div>';
     html += '</div>';
 
-    if (report.imported.length > 0) {
+    if (report.restored && report.imported.length > 0) {
+      html += '<div class="lp-error-banner lp-error-warnings">';
+      html += '<div class="lp-error-title">已回滚的写入操作</div>';
+      html += '<div class="lp-warning-item">以下关卡曾写入但已回滚，不影响存档：</div>';
+      report.imported.forEach(item => {
+        html += '<div class="lp-warning-item">↩ ' + escapeHtml(item.name) + ' [' + escapeHtml(item.action) + ']</div>';
+      });
+      html += '</div>';
+    }
+
+    if (report.imported.length > 0 && !report.restored) {
       html += '<div class="lp-report-section"><h4>成功导入的关卡</h4><div class="lp-report-list">';
       report.imported.forEach(item => {
         const actionLabel = item.action === "overwrite" ? "覆盖" : (item.action === "copy" ? "另存为" : "新增");
