@@ -1042,8 +1042,9 @@ const AppGame = (() => {
   }
 
   function onBeforeToolUsed(toolId) {
-    if (!selectedPiece) return;
+    if (!selectedPiece) return false;
     pushHistory();
+    return true;
   }
 
   function onToolUsedCancelled() {

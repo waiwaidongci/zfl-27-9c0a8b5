@@ -133,8 +133,9 @@ const AppToolbox = (() => {
     if (!isToolAvailable(toolId)) return false;
 
     const isTransform = tool.category === "transform";
+    let historyCaptured = false;
     if (isTransform && game && game.onBeforeToolUsed) {
-      game.onBeforeToolUsed(toolId);
+      historyCaptured = game.onBeforeToolUsed(toolId) === true;
     }
 
     const success = tool.onUse(selectedPiece, puzzleConfig);
@@ -144,7 +145,7 @@ const AppToolbox = (() => {
         game.onToolUsed(toolId, selectedPiece);
       }
       updateToolStates();
-    } else if (isTransform && game && game.onToolUsedCancelled) {
+    } else if (historyCaptured && game && game.onToolUsedCancelled) {
       game.onToolUsedCancelled();
     }
     return success;
