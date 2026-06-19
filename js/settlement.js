@@ -31,6 +31,10 @@ const AppSettlement = (() => {
     return errorAttempts;
   }
 
+  function setErrorAttempts(value) {
+    errorAttempts = Math.max(0, value | 0);
+  }
+
   function setToolUsage(usage) {
     toolUsage = { ...usage };
   }
@@ -212,6 +216,7 @@ const AppSettlement = (() => {
     reset,
     incrementErrorAttempts,
     getErrorAttempts,
+    setErrorAttempts,
     setToolUsage,
     computeScore,
     setWin,

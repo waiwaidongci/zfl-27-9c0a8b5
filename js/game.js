@@ -18,6 +18,12 @@ const AppGame = (() => {
   let body = null;
   let hintBtn = null;
   let resetBtn = null;
+  let undoBtn = null;
+  let redoBtn = null;
+
+  const MAX_HISTORY = 50;
+  let undoStack = [];
+  let redoStack = [];
 
   let currentIndex = 0;
   let currentPuzzle = null;
@@ -84,11 +90,15 @@ const AppGame = (() => {
     body = document.body;
     hintBtn = document.querySelector("#hintBtn");
     resetBtn = document.querySelector("#resetBtn");
+    undoBtn = document.querySelector("#undoBtn");
+    redoBtn = document.querySelector("#redoBtn");
   }
 
   function bindUI() {
     hintBtn.onclick = handleHint;
     resetBtn.onclick = handleReset;
+    if (undoBtn) undoBtn.onclick = handleUndo;
+    if (redoBtn) redoBtn.onclick = handleRedo;
     document.addEventListener("keydown", handleKeyDown);
   }
 
@@ -505,11 +515,7 @@ const AppGame = (() => {
     if (typeof savedState.focusMode === "string") focusMode = savedState.focusMode;
     if (typeof savedState.focusedTrayIndex === "number") focusedTrayIndex = savedState.focusedTrayIndex;
     if (AppSettlement && typeof savedState.errorAttempts === "number") {
-      const currentErrors = AppSettlement.getErrorAttempts();
-      const needed = Math.max(0, savedState.errorAttempts - currentErrors);
-      for (let i = 0; i < needed; i++) {
-        AppSettlement.incrementErrorAttempts();
-      }
+      AppSettlement.setErrorAttempts(savedState.errorAttempts);
     }
     if (AppToolbox && savedState.toolUsage) {
       AppToolbox.setUsage(savedState.toolUsage);
@@ -579,9 +585,7 @@ const AppGame = (() => {
     if (typeof savedState.totalTime === "number") totalTime = savedState.totalTime;
     if (typeof savedState.hintUsed === "boolean") hintUsed = savedState.hintUsed;
     if (AppSettlement && typeof savedState.errorAttempts === "number") {
-      for (let i = 0; i < savedState.errorAttempts; i++) {
-        AppSettlement.incrementErrorAttempts();
-      }
+      AppSettlement.setErrorAttempts(savedState.errorAttempts);
     }
     if (AppToolbox && savedState.toolUsage) {
       AppToolbox.setUsage(savedState.toolUsage);
@@ -621,6 +625,163 @@ const AppGame = (() => {
     }
   }
 
+  function clearHistory() {
+    undoStack = [];
+    redoStack = [];
+    updateUndoRedoButtons();
+  }
+
+  function captureHistorySnapshot() {
+    const pieceStates = pieces.map(p => {
+      const el = document.querySelector('.piece[data-id="' + p.id + '"]');
+      let left = null, top = null, location = "tray";
+      if (el) {
+        left = parseFloat(el.style.left);
+        top = parseFloat(el.style.top);
+        location = el.parentElement && el.parentElement.id === "board" ? "board" : "tray";
+      }
+      return {
+        id: p.id,
+        rotation: p.rotation,
+        flipped: p.flipped,
+        locked: p.locked,
+        col: p.col,
+        row: p.row,
+        label: p.label,
+        left,
+        top,
+        location
+      };
+    });
+    return {
+      score,
+      time,
+      totalTime,
+      hintUsed,
+      errorAttempts: AppSettlement ? AppSettlement.getErrorAttempts() : 0,
+      toolUsage: AppToolbox ? AppToolbox.getUsage() : {},
+      pieceStates,
+      keyboardMode,
+      focusedCell: { ...focusedCell },
+      focusMode,
+      focusedTrayIndex,
+      selectedPieceId: selectedPiece ? selectedPiece.id : null,
+      capturedAt: Date.now()
+    };
+  }
+
+  function applyHistorySnapshot(snapshot) {
+    if (!snapshot) return false;
+    if (typeof snapshot.score === "number") score = snapshot.score;
+    if (typeof snapshot.time === "number") time = snapshot.time;
+    if (typeof snapshot.totalTime === "number") totalTime = snapshot.totalTime;
+    if (typeof snapshot.hintUsed === "boolean") hintUsed = snapshot.hintUsed;
+    if (typeof snapshot.keyboardMode === "boolean") keyboardMode = snapshot.keyboardMode;
+    if (snapshot.focusedCell && typeof snapshot.focusedCell === "object") {
+      focusedCell = { col: snapshot.focusedCell.col || 0, row: snapshot.focusedCell.row || 0 };
+    }
+    if (typeof snapshot.focusMode === "string") focusMode = snapshot.focusMode;
+    if (typeof snapshot.focusedTrayIndex === "number") focusedTrayIndex = snapshot.focusedTrayIndex;
+    if (AppSettlement && typeof snapshot.errorAttempts === "number") {
+      AppSettlement.setErrorAttempts(snapshot.errorAttempts);
+    }
+    if (AppToolbox && snapshot.toolUsage) {
+      AppToolbox.setUsage(snapshot.toolUsage);
+    }
+    if (snapshot.pieceStates && Array.isArray(snapshot.pieceStates)) {
+      snapshot.pieceStates.forEach(ps => {
+        const piece = pieces.find(p => p.id === ps.id);
+        if (piece) {
+          piece.rotation = ps.rotation;
+          piece.flipped = ps.flipped;
+          piece.locked = ps.locked;
+        }
+        const el = document.querySelector('.piece[data-id="' + ps.id + '"]');
+        if (el && piece) {
+          if (ps.locked) {
+            el.classList.add("locked");
+          } else {
+            el.classList.remove("locked");
+          }
+          if (ps.left !== null && !isNaN(ps.left)) el.style.left = ps.left + "px";
+          if (ps.top !== null && !isNaN(ps.top)) el.style.top = ps.top + "px";
+          if (ps.location === "board" && board) board.appendChild(el);
+          else if (ps.location === "tray" && tray) tray.appendChild(el);
+          AppPieceState.applyTransformToElement(el, piece);
+          if (ps.locked) {
+            const p = currentPuzzle;
+            if (p && board) {
+              const cellW = board.clientWidth / p.cols;
+              const cellH = board.clientHeight / p.rows;
+              const targetX = piece.col * cellW + 5;
+              const targetY = piece.row * cellH + 5;
+              el.style.left = targetX + "px";
+              el.style.top = targetY + "px";
+              if (el.parentElement !== board) board.appendChild(el);
+            }
+          }
+        }
+      });
+      clearSelectedPiece();
+      if (typeof snapshot.selectedPieceId === "number") {
+        const selPiece = pieces.find(p => p.id === snapshot.selectedPieceId && !p.locked);
+        if (selPiece) {
+          const selEl = document.querySelector('.piece[data-id="' + selPiece.id + '"]');
+          if (selEl) selectPiece(selPiece, selEl);
+        }
+      }
+    }
+    AppSettlement.setHintUsed(hintUsed);
+    updateHud();
+    updateKeyboardHighlights();
+    if (isDailyMode) saveDailyState();
+    else saveLevelState();
+    return true;
+  }
+
+  function pushHistory() {
+    try {
+      const snapshot = captureHistorySnapshot();
+      undoStack.push(snapshot);
+      if (undoStack.length > MAX_HISTORY) {
+        undoStack.shift();
+      }
+      redoStack = [];
+      updateUndoRedoButtons();
+    } catch (e) {}
+  }
+
+  function handleUndo() {
+    if (undoStack.length === 0) return;
+    if (overlay && !overlay.classList.contains("hidden")) return;
+    const currentSnapshot = captureHistorySnapshot();
+    const prevSnapshot = undoStack.pop();
+    redoStack.push(currentSnapshot);
+    applyHistorySnapshot(prevSnapshot);
+    updateUndoRedoButtons();
+  }
+
+  function handleRedo() {
+    if (redoStack.length === 0) return;
+    if (overlay && !overlay.classList.contains("hidden")) return;
+    const currentSnapshot = captureHistorySnapshot();
+    const nextSnapshot = redoStack.pop();
+    undoStack.push(currentSnapshot);
+    applyHistorySnapshot(nextSnapshot);
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    if (undoBtn) {
+      undoBtn.disabled = undoStack.length === 0;
+      undoBtn.classList.toggle("history-disabled", undoStack.length === 0);
+    }
+    if (redoBtn) {
+      redoBtn.disabled = redoStack.length === 0;
+      redoBtn.classList.toggle("history-disabled", redoStack.length === 0);
+    }
+  }
+
   function initGameState() {
     score = 1000;
     totalTime = currentPuzzle.timeLimit || 120;
@@ -639,6 +800,7 @@ const AppGame = (() => {
     AppToolbox.setPuzzleConfig(currentPuzzle);
     AppToolbox.setSelectedPiece(null);
     clearKeyboardHighlights();
+    clearHistory();
   }
 
   function startTimer() {
@@ -835,6 +997,7 @@ const AppGame = (() => {
     drag = null;
     document.body.style.touchAction = "";
     if (el.parentElement !== board) return;
+    pushHistory();
     const p = currentPuzzle;
     const cellW = board.clientWidth / p.cols;
     const cellH = board.clientHeight / p.rows;
@@ -877,6 +1040,7 @@ const AppGame = (() => {
   }
 
   function onToolUsed(toolId, piece) {
+    pushHistory();
     if (piece) {
       const el = document.querySelector('.piece[data-id="' + piece.id + '"]');
       if (el) {
@@ -1090,6 +1254,7 @@ const AppGame = (() => {
     }
     const piece = pieces.find(item => !item.locked);
     if (!piece) return;
+    pushHistory();
     hintUsed = true;
     AppSettlement.setHintUsed(true);
     if (tutorial) tutorial.onHint();
@@ -1269,6 +1434,18 @@ const AppGame = (() => {
     if (tutorial && tutorial.isActive()) return;
 
     const key = event.key;
+    const ctrlOrCmd = event.ctrlKey || event.metaKey;
+
+    if (ctrlOrCmd && key === "z" && !event.shiftKey) {
+      event.preventDefault();
+      handleUndo();
+      return;
+    }
+    if ((ctrlOrCmd && key === "z" && event.shiftKey) || (ctrlOrCmd && (key === "y" || key === "Y"))) {
+      event.preventDefault();
+      handleRedo();
+      return;
+    }
 
     if (key === "Tab") {
       event.preventDefault();
@@ -1360,6 +1537,8 @@ const AppGame = (() => {
     saveLevelState,
     clearLevelSave,
     clearAllLevelSaves,
-    hasLevelSave
+    hasLevelSave,
+    undo: handleUndo,
+    redo: handleRedo
   };
 })();
