@@ -453,6 +453,7 @@ const AppDailyChallenge = (() => {
     renderCalendar();
     calendarOverlayEl.classList.remove('hidden');
     calendarModalEl.classList.remove('hidden');
+    detailModalEl.classList.add('hidden');
     setCountdownCallbacks({
       onUpdate: (formatted) => {
         const el = document.getElementById('calCountdownTime');
@@ -468,6 +469,7 @@ const AppDailyChallenge = (() => {
   function closeCalendar() {
     if (calendarOverlayEl) calendarOverlayEl.classList.add('hidden');
     if (calendarModalEl) calendarModalEl.classList.add('hidden');
+    if (detailModalEl) detailModalEl.classList.add('hidden');
     stopCountdownTimer();
   }
 
@@ -533,8 +535,10 @@ const AppDailyChallenge = (() => {
         ? `<div class="cal-day-today-badge">今日</div>`
         : '';
 
+      const colStart = weekday + 1;
+
       html += `
-        <div class="cal-day ${statusClass}" data-date="${rec.date}" title="${dateFullLabel}">
+        <div class="cal-day ${statusClass}" data-date="${rec.date}" title="${dateFullLabel}" style="grid-column: ${colStart}">
           ${todayBadge}
           <div class="cal-day-date">${dateLabel}</div>
           <div class="cal-day-status-icon">${statusIcon}</div>
@@ -635,7 +639,7 @@ const AppDailyChallenge = (() => {
 
   function openDetailModal(dateStr) {
     if (!detailModalEl) bindCalendarUI();
-    if (!detailModalEl || !calendarOverlayEl) return;
+    if (!detailModalEl || !calendarModalEl || !calendarOverlayEl) return;
 
     currentDetailDate = dateStr;
     const record = getRecordByDate(dateStr);
@@ -716,16 +720,19 @@ const AppDailyChallenge = (() => {
     const container = detailModalEl.querySelector('.detail-container');
     if (container) container.innerHTML = html;
 
+    calendarModalEl.classList.add('hidden');
+    detailModalEl.classList.remove('hidden');
+
     const todayBtn = document.getElementById('detailStartTodayBtn');
     if (todayBtn) todayBtn.onclick = () => { closeDetailModal(); startTodayChallenge(); };
     const tempBtn = document.getElementById('detailTempPlayBtn');
     if (tempBtn) tempBtn.onclick = () => { closeDetailModal(); startTempPlayForDate(dateStr); };
-
-    detailModalEl.classList.remove('hidden');
   }
 
   function closeDetailModal() {
-    if (detailModalEl) detailModalEl.classList.add('hidden');
+    if (!detailModalEl || !calendarModalEl) return;
+    detailModalEl.classList.add('hidden');
+    calendarModalEl.classList.remove('hidden');
     currentDetailDate = null;
   }
 
