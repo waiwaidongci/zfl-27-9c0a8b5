@@ -345,7 +345,19 @@ const AppGame = (() => {
       const col = i % p.cols;
       const row = Math.floor(i / p.cols);
       const piece = AppPieceState.createPieceState(i, { label, col, row });
-      AppPieceState.randomizeOrientation(piece, currentPuzzle);
+
+      if (p.initialRotations && p.initialRotations[i] !== undefined) {
+        piece.rotation = p.initialRotations[i];
+      } else {
+        AppPieceState.randomizeOrientation(piece, currentPuzzle);
+      }
+
+      if (p.initialFlips && p.initialFlips[i] !== undefined) {
+        piece.flipped = p.initialFlips[i];
+      } else if (!p.initialRotations || p.initialRotations[i] === undefined) {
+        AppPieceState.randomizeOrientation(piece, currentPuzzle);
+      }
+
       pieces.push(piece);
     });
 
@@ -355,7 +367,15 @@ const AppGame = (() => {
   }
 
   function placePiecesByRule(rule, cellW, cellH) {
-    const pieceList = [...pieces];
+    const p = currentPuzzle;
+    let pieceList;
+
+    if (p.initialPieceOrder && Array.isArray(p.initialPieceOrder) && p.initialPieceOrder.length === pieces.length) {
+      pieceList = p.initialPieceOrder.map(id => pieces.find(pp => pp.id === id)).filter(Boolean);
+    } else {
+      pieceList = [...pieces];
+    }
+
     switch (rule) {
       case "ordered":
         pieceList.forEach((piece, i) => createPiece(piece, i, cellW, cellH, "ordered"));
@@ -379,7 +399,10 @@ const AppGame = (() => {
         break;
       case "random":
       default:
-        shuffle(pieceList).forEach((piece, i) => createPiece(piece, i, cellW, cellH, "random"));
+        if (!p.initialPieceOrder) {
+          shuffle(pieceList);
+        }
+        pieceList.forEach((piece, i) => createPiece(piece, i, cellW, cellH, "random"));
     }
   }
 

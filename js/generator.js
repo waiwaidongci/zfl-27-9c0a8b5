@@ -273,6 +273,24 @@ const AppGenerator = (() => {
       availableTools.push("flip");
     }
 
+    const pieceIds = rawPieces.map(p => p.id);
+    const initialPieceOrder = rng.shuffle(pieceIds);
+
+    const ROTATION_OPTIONS = [0, 90, 180, 270];
+    const initialRotations = initialPieceOrder.map(id => {
+      if (initialRotationScrambled) {
+        return rng.pick(ROTATION_OPTIONS);
+      }
+      return 0;
+    });
+
+    const initialFlips = initialPieceOrder.map(id => {
+      if (initialFlipScrambled) {
+        return rng.nextBoolean(0.5);
+      }
+      return false;
+    });
+
     const puzzle = {
       id: "gen-" + seed.toString().replace(/[^a-z0-9]/gi, "-"),
       name: options.name || `${themeName}·第${difficulty}关`,
@@ -290,6 +308,9 @@ const AppGenerator = (() => {
       availableTools,
       generated: true,
       generatorSeed: seed,
+      initialPieceOrder,
+      initialRotations,
+      initialFlips,
       generatorOptions: {
         difficulty,
         theme: themeId,
