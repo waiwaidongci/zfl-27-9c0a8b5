@@ -8,6 +8,7 @@ const AppLibrary = (() => {
   let filterPaper = "all";
   let filterType = "all";
   let filterStatus = "all";
+  let currentView = "library";
   let onExit = null;
   let onStartPuzzle = null;
   let savedGameState = null;
@@ -404,10 +405,128 @@ const AppLibrary = (() => {
     return html;
   }
 
-  function render() {
-    const container = document.querySelector("#libraryContainer");
-    if (!container) return;
+  function renderTabBar() {
+    let html = '<div class="lib-tab-bar">';
+    html += '<button class="lib-tab-btn' + (currentView === "library" ? ' active' : '') + '" data-view="library">藏书阁</button>';
+    html += '<button class="lib-tab-btn' + (currentView === "stats" ? ' active' : '') + '" data-view="stats">修补统计</button>';
+    html += '</div>';
+    return html;
+  }
 
+  function renderStats() {
+    const stats = getStats();
+    const records = loadLibrary();
+    const paperName = stats.mostUsedPaper && AppData.themes.paper[stats.mostUsedPaper]
+      ? AppData.themes.paper[stats.mostUsedPaper].name
+      : "暂无";
+
+    let html = '<div class="lib-breadcrumb">';
+    html += '<span class="crumb" id="libraryBackBtn">← 返回修补台</span>';
+    html += '<span class="sep">›</span>';
+    html += '<span class="current">修补统计</span>';
+    html += '</div>';
+
+    html += renderTabBar();
+
+    html += '<div class="stats-header">';
+    html += '<h2>修补统计</h2>';
+    html += '<div class="stats-subtitle">累计入藏 <b>' + stats.total + '</b> 页残卷</div>';
+    html += '</div>';
+
+    html += '<div class="stats-grid">';
+    html += '<div class="stat-card" data-filter="total">';
+    html += '<div class="stat-icon">📚</div>';
+    html += '<div class="stat-value">' + stats.total + '</div>';
+    html += '<div class="stat-label">总入藏数</div>';
+    html += '<div class="stat-hint">点击查看全部</div>';
+    html += '</div>';
+
+    html += '<div class="stat-card stat-perfect" data-filter="perfect">';
+    html += '<div class="stat-icon">✨</div>';
+    html += '<div class="stat-value">' + stats.perfectCount + '</div>';
+    html += '<div class="stat-label">完美修补</div>';
+    html += '<div class="stat-hint">点击查看</div>';
+    html += '</div>';
+
+    html += '<div class="stat-card stat-no-hint" data-filter="noHint">';
+    html += '<div class="stat-icon">🎯</div>';
+    html += '<div class="stat-value">' + stats.noHintCount + '</div>';
+    html += '<div class="stat-label">无提示完成</div>';
+    html += '<div class="stat-hint">点击查看</div>';
+    html += '</div>';
+
+    html += '<div class="stat-card" data-filter="avgScore">';
+    html += '<div class="stat-icon">📊</div>';
+    html += '<div class="stat-value">' + stats.avgScore + '</div>';
+    html += '<div class="stat-label">平均得分</div>';
+    html += '<div class="stat-hint">基于已完成</div>';
+    html += '</div>';
+
+    html += '<div class="stat-card" data-filter="fastest">';
+    html += '<div class="stat-icon">⚡</div>';
+    html += '<div class="stat-value">' + (stats.fastestTime !== null ? stats.fastestTime + '秒' : '-') + '</div>';
+    html += '<div class="stat-label">最快用时</div>';
+    html += '<div class="stat-hint">' + (stats.fastestTime !== null ? '点击查看' : '暂无记录') + '</div>';
+    html += '</div>';
+
+    html += '<div class="stat-card stat-paper" data-filter="paper" data-paper="' + (stats.mostUsedPaper || '') + '">';
+    html += '<div class="stat-icon">📜</div>';
+    html += '<div class="stat-value">' + paperName + '</div>';
+    html += '<div class="stat-label">常用纸张</div>';
+    html += '<div class="stat-hint">' + (stats.mostUsedPaperCount > 0 ? '共' + stats.mostUsedPaperCount + '页 · 点击查看' : '暂无记录') + '</div>';
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div class="stats-section">';
+    html += '<h3 class="stats-section-title">类型分布</h3>';
+    html += '<div class="type-breakdown">';
+    html += '<div class="type-item" data-filter="type" data-type="builtin">';
+    html += '<div class="type-bar-wrap"><div class="type-bar type-builtin" style="height:' + (stats.total > 0 ? (stats.typeBreakdown.builtin / stats.total * 100) : 0) + '%"></div></div>';
+    html += '<div class="type-value">' + stats.typeBreakdown.builtin + '</div>';
+    html += '<div class="type-label">内置</div>';
+    html += '</div>';
+    html += '<div class="type-item" data-filter="type" data-type="custom">';
+    html += '<div class="type-bar-wrap"><div class="type-bar type-custom" style="height:' + (stats.total > 0 ? (stats.typeBreakdown.custom / stats.total * 100) : 0) + '%"></div></div>';
+    html += '<div class="type-value">' + stats.typeBreakdown.custom + '</div>';
+    html += '<div class="type-label">自定义</div>';
+    html += '</div>';
+    html += '<div class="type-item" data-filter="type" data-type="daily">';
+    html += '<div class="type-bar-wrap"><div class="type-bar type-daily" style="height:' + (stats.total > 0 ? (stats.typeBreakdown.daily / stats.total * 100) : 0) + '%"></div></div>';
+    html += '<div class="type-value">' + stats.typeBreakdown.daily + '</div>';
+    html += '<div class="type-label">每日残页</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div class="stats-section">';
+    html += '<h3 class="stats-section-title">最近完成趋势（近7天）</h3>';
+    html += '<div class="trend-chart">';
+    const maxCount = Math.max(...stats.recentTrend.map(d => d.count), 1);
+    stats.recentTrend.forEach(day => {
+      const heightPercent = day.count > 0 ? (day.count / maxCount * 100) : 0;
+      html += '<div class="trend-day">';
+      html += '<div class="trend-bar-wrap">';
+      html += '<div class="trend-bar" style="height:' + heightPercent + '%"></div>';
+      html += '</div>';
+      html += '<div class="trend-count">' + day.count + '</div>';
+      html += '<div class="trend-date">' + day.date + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    html += '</div>';
+
+    if (records.length === 0) {
+      html += '<div class="lib-empty">';
+      html += '<div class="lib-empty-icon">📖</div>';
+      html += '<div class="lib-empty-text">尚无统计数据</div>';
+      html += '<div class="lib-empty-hint">完成修补后的残页将自动收入藏书阁并更新统计</div>';
+      html += '</div>';
+    }
+
+    return html;
+  }
+
+  function renderLibrary() {
     const records = getFilteredSorted();
 
     let html = '<div class="lib-breadcrumb">';
@@ -415,6 +534,8 @@ const AppLibrary = (() => {
     html += '<span class="sep">›</span>';
     html += '<span class="current">藏书阁</span>';
     html += '</div>';
+
+    html += renderTabBar();
 
     html += '<div class="lib-header">';
     html += '<h2>藏书阁</h2>';
@@ -436,6 +557,20 @@ const AppLibrary = (() => {
         html += renderCard(entry);
       });
       html += '</div>';
+    }
+
+    return html;
+  }
+
+  function render() {
+    const container = document.querySelector("#libraryContainer");
+    if (!container) return;
+
+    let html;
+    if (currentView === "stats") {
+      html = renderStats();
+    } else {
+      html = renderLibrary();
     }
 
     container.innerHTML = html;
@@ -482,6 +617,47 @@ const AppLibrary = (() => {
     render();
   }
 
+  function handleStatClick(statFilter, data) {
+    filterHint = "all";
+    filterPaper = "all";
+    filterType = "all";
+    filterStatus = "all";
+    currentSort = "completionDate";
+    currentSortDir = "desc";
+
+    switch (statFilter) {
+      case "total":
+        break;
+      case "perfect":
+        filterStatus = "completed";
+        break;
+      case "noHint":
+        setFilter("hint", "no");
+        break;
+      case "avgScore":
+        currentSort = "bestScore";
+        currentSortDir = "desc";
+        break;
+      case "fastest":
+        currentSort = "bestTime";
+        currentSortDir = "asc";
+        break;
+      case "paper":
+        if (data && data.paper) {
+          setFilter("paper", data.paper);
+        }
+        break;
+      case "type":
+        if (data && data.type) {
+          setFilter("type", data.type);
+        }
+        break;
+    }
+
+    currentView = "library";
+    render();
+  }
+
   function bindEvents() {
     const backBtn = document.querySelector("#libraryBackBtn");
     if (backBtn) {
@@ -490,6 +666,32 @@ const AppLibrary = (() => {
         if (onExit) onExit();
       };
     }
+
+    document.querySelectorAll(".lib-tab-btn").forEach(btn => {
+      btn.onclick = () => {
+        currentView = btn.dataset.view;
+        render();
+      };
+    });
+
+    document.querySelectorAll(".stat-card").forEach(card => {
+      const filterType = card.dataset.filter;
+      if (!filterType) return;
+      if (filterType === "avgScore") return;
+
+      card.style.cursor = "pointer";
+      card.onclick = () => {
+        const paper = card.dataset.paper;
+        handleStatClick(filterType, { paper });
+      };
+    });
+
+    document.querySelectorAll(".type-item").forEach(item => {
+      item.onclick = () => {
+        const type = item.dataset.type;
+        handleStatClick("type", { type });
+      };
+    });
 
     document.querySelectorAll(".lib-sort-btn").forEach(btn => {
       btn.onclick = () => {
@@ -533,13 +735,67 @@ const AppLibrary = (() => {
 
   function getStats() {
     const records = loadLibrary();
+    const completedRecords = records.filter(r => r.bestScore > 0);
+
+    const total = records.length;
+    const perfectCount = records.filter(r => r.rating && r.rating.includes("完美")).length;
+    const noHintCount = records.filter(r => !r.hintUsed).length;
+    const avgScore = completedRecords.length > 0
+      ? Math.round(completedRecords.reduce((s, r) => s + (r.bestScore || 0), 0) / completedRecords.length)
+      : 0;
+
+    const times = completedRecords
+      .filter(r => r.bestTime !== null && r.bestTime !== undefined)
+      .map(r => r.bestTime);
+    const fastestTime = times.length > 0 ? Math.min(...times) : null;
+
+    const paperCount = {};
+    records.forEach(r => {
+      if (r.theme && r.theme.paper) {
+        paperCount[r.theme.paper] = (paperCount[r.theme.paper] || 0) + 1;
+      }
+    });
+    let mostUsedPaper = null;
+    let maxPaperCount = 0;
+    Object.keys(paperCount).forEach(p => {
+      if (paperCount[p] > maxPaperCount) {
+        maxPaperCount = paperCount[p];
+        mostUsedPaper = p;
+      }
+    });
+
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const last7Days = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(now - i * oneDay);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+      const count = completedRecords.filter(r =>
+        r.completionDate && r.completionDate >= dayStart.getTime() && r.completionDate <= dayEnd.getTime()
+      ).length;
+      const dateStr = (dayStart.getMonth() + 1) + '/' + dayStart.getDate();
+      last7Days.push({ date: dateStr, count });
+    }
+
+    const typeBreakdown = {
+      builtin: records.filter(r => !r.daily && r.puzzleId && r.puzzleId.startsWith("builtin-")).length,
+      custom: records.filter(r => !r.daily && r.puzzleId && r.puzzleId.startsWith("custom-")).length,
+      daily: records.filter(r => r.daily).length
+    };
+
     return {
-      total: records.length,
-      perfectCount: records.filter(r => r.rating && r.rating.includes("完美")).length,
-      noHintCount: records.filter(r => !r.hintUsed).length,
-      avgScore: records.length > 0
-        ? Math.round(records.reduce((s, r) => s + (r.bestScore || 0), 0) / records.length)
-        : 0
+      total,
+      perfectCount,
+      noHintCount,
+      avgScore,
+      fastestTime,
+      mostUsedPaper,
+      mostUsedPaperCount: maxPaperCount,
+      recentTrend: last7Days,
+      typeBreakdown,
+      paperCount
     };
   }
 
