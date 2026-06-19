@@ -6,7 +6,7 @@ const AppLevelAdapter = (() => {
     { cols: 4, rows: 2, minDifficulty: 2, maxDifficulty: 3, aspectRatio: "2:1" },
     { cols: 4, rows: 3, minDifficulty: 3, maxDifficulty: 4, aspectRatio: "4:3" },
     { cols: 5, rows: 3, minDifficulty: 4, maxDifficulty: 5, aspectRatio: "5:3" },
-    { cols: 4, rows: 4, minDifficulty: 4, maxDifficulty: 5, aspectRatio: "1:1" },
+    { cols: 4, rows: 4, minDifficulty: 5, maxDifficulty: 5, aspectRatio: "1:1" },
     { cols: 5, rows: 4, minDifficulty: 5, maxDifficulty: 5, aspectRatio: "5:4" }
   ];
 

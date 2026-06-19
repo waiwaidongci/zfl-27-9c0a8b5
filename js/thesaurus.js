@@ -116,13 +116,17 @@ const AppThesaurus = (() => {
     const result = [];
     const used = new Set();
 
-    if (similarity > 0 && bank.similarPairs && bank.similarPairs.length > 0) {
-      const similarPairs = [...bank.similarPairs];
-      const pairCount = Math.min(Math.floor(count * similarity / 2), similarPairs.length, Math.floor(count / 2));
+    const shuffledWords = rng.shuffle(words);
+
+    const similarPairs = bank.similarPairs ? [...bank.similarPairs] : [];
+    const maxPairCount = Math.floor(count / 2);
+    const shuffledPairs = rng.shuffle(similarPairs);
+
+    if (similarity > 0 && shuffledPairs.length > 0) {
+      const pairCount = Math.min(Math.floor(count * similarity / 2), shuffledPairs.length, maxPairCount);
 
       for (let i = 0; i < pairCount; i++) {
-        const idx = Math.floor(rng.next() * similarPairs.length);
-        const pair = similarPairs.splice(idx, 1)[0];
+        const pair = shuffledPairs[i];
         for (const w of pair) {
           if (!used.has(w) && result.length < count) {
             result.push(w);
@@ -132,9 +136,8 @@ const AppThesaurus = (() => {
       }
     }
 
-    while (result.length < count) {
-      const idx = Math.floor(rng.next() * words.length);
-      const word = words[idx];
+    for (let i = 0; i < shuffledWords.length && result.length < count; i++) {
+      const word = shuffledWords[i];
       if (!used.has(word)) {
         result.push(word);
         used.add(word);

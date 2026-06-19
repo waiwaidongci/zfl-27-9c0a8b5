@@ -7,6 +7,7 @@ const AppDebugPanel = (() => {
   let customSeed = "";
   let isOpen = false;
   let onStartGenerated = null;
+  let onToggleState = null;
 
   const state = {
     history: [],
@@ -19,6 +20,9 @@ const AppDebugPanel = (() => {
   function init(options = {}) {
     if (options.onStartGenerated) {
       onStartGenerated = options.onStartGenerated;
+    }
+    if (options.onToggleState) {
+      onToggleState = options.onToggleState;
     }
     loadState();
     createPanel();
@@ -47,6 +51,7 @@ const AppDebugPanel = (() => {
       puzzleName: result.puzzle.name,
       difficulty: result.puzzle.generatorOptions?.difficulty || 3,
       theme: result.puzzle.generatorOptions?.theme,
+      puzzle: result.puzzle,
       timestamp: Date.now()
     });
     saveState();
@@ -64,6 +69,7 @@ const AppDebugPanel = (() => {
           puzzleName: result.puzzle.name,
           difficulty: result.puzzle.generatorOptions?.difficulty || 3,
           theme: result.puzzle.generatorOptions?.theme,
+          puzzle: result.puzzle,
           timestamp: Date.now()
         });
       }
@@ -312,17 +318,41 @@ const AppDebugPanel = (() => {
     const puzzle = result.puzzle;
     const previewInfo = AppThemeRenderer.createPreview(puzzle.theme, puzzle.generatorOptions?.theme);
 
+    const damageStyles = {
+      none: "",
+      torn: "debug-damage-torn",
+      frayed: "debug-damage-frayed",
+      chipped: "debug-damage-chipped",
+      scalloped: "debug-damage-scalloped",
+      irregular: "debug-damage-irregular"
+    };
+
+    const damageLabels = {
+      none: "",
+      torn: "撕裂",
+      frayed: "磨损",
+      chipped: "缺口",
+      scalloped: "扇贝",
+      irregular: "不规则"
+    };
+
     const cells = [];
     for (let r = 0; r < puzzle.rows; r++) {
       for (let c = 0; c < puzzle.cols; c++) {
         const idx = r * puzzle.cols + c;
+        const damage = puzzle.pieceDamage ? puzzle.pieceDamage[idx] : "none";
+        const damageClass = damageStyles[damage] || "";
+        const damageLabel = damageLabels[damage] || "";
         cells.push(`
-          <div class="debug-preview-cell" style="
+          <div class="debug-preview-cell ${damageClass}" style="
             background: ${previewInfo.paperColor};
             color: ${previewInfo.inkColor};
             grid-column: ${c + 1};
             grid-row: ${r + 1};
-          ">${puzzle.text[idx]}</div>
+          ">
+            ${puzzle.text[idx]}
+            ${damageLabel ? `<span class="debug-damage-label">${damageLabel}</span>` : ""}
+          </div>
         `);
       }
     }
@@ -496,7 +526,8 @@ const AppDebugPanel = (() => {
   function loadFromHistory(idx) {
     const h = state.history[idx];
     if (!h) return;
-    const result = AppGenerator.regenerateFromSeed(h.seed);
+    const existingPuzzle = h.puzzle || null;
+    const result = AppGenerator.regenerateFromSeed(h.seed, existingPuzzle);
     currentConfig = result;
     currentPuzzle = result.puzzle;
     renderPreview(result);
@@ -511,7 +542,8 @@ const AppDebugPanel = (() => {
   function playFromHistory(idx) {
     const h = state.history[idx];
     if (!h) return;
-    const result = AppGenerator.regenerateFromSeed(h.seed);
+    const existingPuzzle = h.puzzle || null;
+    const result = AppGenerator.regenerateFromSeed(h.seed, existingPuzzle);
     if (onStartGenerated) {
       onStartGenerated(result.puzzle);
       close();
@@ -521,7 +553,8 @@ const AppDebugPanel = (() => {
   function loadFromFavorite(idx) {
     const f = state.favorites[idx];
     if (!f) return;
-    const result = AppGenerator.regenerateFromSeed(f.seed);
+    const existingPuzzle = f.puzzle || null;
+    const result = AppGenerator.regenerateFromSeed(f.seed, existingPuzzle);
     currentConfig = result;
     currentPuzzle = result.puzzle;
     renderPreview(result);
@@ -536,7 +569,8 @@ const AppDebugPanel = (() => {
   function playFromFavorite(idx) {
     const f = state.favorites[idx];
     if (!f) return;
-    const result = AppGenerator.regenerateFromSeed(f.seed);
+    const existingPuzzle = f.puzzle || null;
+    const result = AppGenerator.regenerateFromSeed(f.seed, existingPuzzle);
     if (onStartGenerated) {
       onStartGenerated(result.puzzle);
       close();
@@ -554,7 +588,7 @@ const AppDebugPanel = (() => {
 
   function bindKeyboardShortcuts() {
     document.addEventListener("keydown", (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === "G") {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "g") {
         e.preventDefault();
         toggle();
       }
@@ -568,11 +602,17 @@ const AppDebugPanel = (() => {
   function open() {
     isOpen = true;
     container.classList.remove("hidden");
+    if (onToggleState) {
+      onToggleState(true);
+    }
   }
 
   function close() {
     isOpen = false;
     container.classList.add("hidden");
+    if (onToggleState) {
+      onToggleState(false);
+    }
   }
 
   function toggle() {
@@ -592,6 +632,10 @@ const AppDebugPanel = (() => {
     onStartGenerated = callback;
   }
 
+  function setOnToggleState(callback) {
+    onToggleState = callback;
+  }
+
   function getCurrentPuzzle() {
     return currentPuzzle;
   }
@@ -602,6 +646,7 @@ const AppDebugPanel = (() => {
     close,
     toggle,
     setOnStartGenerated,
+    setOnToggleState,
     getCurrentPuzzle,
     handleToggleFavorite,
     loadFromHistory,

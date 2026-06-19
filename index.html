@@ -4,68 +4,215 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>古籍修补台</title>
-  <link rel="stylesheet" href="css/style.css">
+  <style>
+    :root {
+      --theme-bg: #efe8dc;
+      --theme-fg: #2b251d;
+      --theme-header-bg: #fffaf0;
+      --theme-header-border: #d8c7ad;
+      --theme-title: #5a3d20;
+      --theme-btn-bg: #8a4f2d;
+      --theme-btn-secondary: #6b6b55;
+      --theme-btn-disabled: #b8a994;
+      --theme-panel-bg: #fffaf0;
+      --theme-panel-border: #d8c7ad;
+      --theme-text-muted: #6c5d4b;
+      --theme-board-bg: #d9caa8;
+      --theme-board-border: #9a7a4c;
+      --theme-gridline: rgba(75,55,35,.25);
+      --theme-piece-bg: #f7ebcd;
+      --theme-piece-border: rgba(66,43,25,.45);
+      --theme-piece-text: #563a24;
+      --theme-piece-shadow: rgba(70,45,20,.2);
+      --theme-piece-small: #8b765d;
+      --theme-piece-locked: rgba(58,118,83,.7);
+      --theme-modal-bg: #fffaf0;
+      --theme-modal-border: #d8c7ad;
+      --theme-modal-row: #f5edd9;
+      --theme-card-bg: #fdf6e6;
+      --theme-card-hover: #fff9e8;
+      --theme-card-current: #fff2df;
+      --theme-card-locked: #e8dfcd;
+      --theme-ghost: rgba(200,180,140,0.5);
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "PingFang SC", sans-serif; background: var(--theme-bg); color: var(--theme-fg); transition: all 0.5s ease; }
+    header { padding: 18px 24px; background: var(--theme-header-bg); border-bottom: 1px solid var(--theme-header-border); display: flex; justify-content: space-between; gap: 16px; align-items: center; transition: all 0.5s ease; }
+    h1 { margin: 0; font-size: 26px; }
+    h2 { margin: 0 0 10px; font-size: 18px; color: var(--theme-title); }
+    button { border: 0; border-radius: 8px; padding: 10px 14px; background: var(--theme-btn-bg); color: #fff; font-weight: 800; cursor: pointer; transition: all 0.3s ease; }
+    button.secondary { background: var(--theme-btn-secondary); }
+    button:disabled { background: var(--theme-btn-disabled); cursor: not-allowed; opacity: 0.7; }
+    .app { display: grid; grid-template-columns: 300px 1fr 280px; gap: 16px; padding: 16px; }
+    .panel { background: var(--theme-panel-bg); border: 1px solid var(--theme-panel-border); border-radius: 8px; padding: 14px; transition: all 0.5s ease; }
+    .stats { display: grid; gap: 8px; color: var(--theme-text-muted); }
+    .board { position: relative; width: min(100%, 620px); aspect-ratio: 4 / 3; margin: 0 auto; background: var(--theme-board-bg); border: 12px solid var(--theme-board-border); border-radius: 8px; overflow: hidden; transition: all 0.5s ease; }
+    .gridline { position: absolute; border: 1px dashed var(--theme-gridline); pointer-events: none; }
+    .piece, .ghost { position: absolute; border: 1px solid var(--theme-piece-border); border-radius: 4px; background: var(--theme-piece-bg); cursor: grab; user-select: none; display: grid; place-items: center; text-align: center; font-weight: 800; color: var(--theme-piece-text); box-shadow: 0 6px 18px var(--theme-piece-shadow); transition: all 0.3s ease; }
+    .piece.locked { cursor: default; box-shadow: inset 0 0 0 2px var(--theme-piece-locked); }
+    .tray { min-height: 360px; position: relative; }
+    .piece small { display: block; font-weight: 400; color: var(--theme-piece-small); margin-top: 4px; }
+    .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(45,32,20,.35); z-index: 100; }
+    .modal { width: min(430px, calc(100% - 28px)); background: var(--theme-modal-bg); border: 1px solid var(--theme-modal-border); border-radius: 8px; padding: 22px; }
+    .modal .result-grid { display: grid; gap: 10px; margin: 14px 0; }
+    .modal .result-row { display: flex; justify-content: space-between; padding: 6px 10px; background: var(--theme-modal-row); border-radius: 6px; }
+    .modal .result-row span:first-child { color: var(--theme-text-muted); }
+    .modal .result-row span:last-child { font-weight: 800; color: var(--theme-title); }
+    .hidden { display: none; }
+
+    .progress-book { display: grid; gap: 10px; }
+    .level-card { border: 1px solid var(--theme-panel-border); border-radius: 8px; padding: 10px 12px; background: var(--theme-card-bg); cursor: pointer; transition: all 0.2s; position: relative; }
+    .level-card:hover:not(.locked) { border-color: var(--theme-btn-bg); background: var(--theme-card-hover); transform: translateY(-1px); }
+    .level-card.current { border-color: var(--theme-btn-bg); background: var(--theme-card-current); box-shadow: 0 0 0 2px rgba(138,79,45,0.2); }
+    .level-card.locked { opacity: 0.55; cursor: not-allowed; background: var(--theme-card-locked); }
+    .level-card .level-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .level-card .level-name { font-weight: 800; color: var(--theme-title); }
+    .level-card .level-badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+    .level-card .level-badge.done { background: #3a7653; color: #fff; }
+    .level-card .level-badge.current-badge { background: var(--theme-btn-bg); color: #fff; }
+    .level-card .level-badge.locked-badge { background: var(--theme-text-muted); color: #fff; }
+    .level-card .level-stats { display: grid; gap: 3px; font-size: 13px; color: var(--theme-text-muted); }
+    .level-card .level-stats div { display: flex; justify-content: space-between; }
+    .level-card .level-stats .val { font-weight: 700; color: var(--theme-title); }
+    .level-card .hint-used { color: #c0683c; }
+    .level-card .no-record { color: #a08d73; font-style: italic; font-size: 12px; }
+    .lock-icon { font-size: 16px; }
+    .level-theme-preview { display: flex; gap: 4px; margin-top: 6px; }
+    .theme-dot { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); }
+
+    .paper-xuanzhi { background-image: 
+      radial-gradient(ellipse at 20% 30%, rgba(180,150,100,0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 70%, rgba(200,170,120,0.1) 0%, transparent 40%),
+      repeating-linear-gradient(90deg, transparent 0px, transparent 2px, rgba(150,120,80,0.03) 2px, rgba(150,120,80,0.03) 4px); }
+    .paper-mazhi { background-image: 
+      radial-gradient(circle at 30% 50%, rgba(130,100,60,0.12) 0%, transparent 40%),
+      radial-gradient(circle at 70% 30%, rgba(140,110,70,0.08) 0%, transparent 35%),
+      repeating-linear-gradient(45deg, transparent 0px, transparent 3px, rgba(120,90,50,0.04) 3px, rgba(120,90,50,0.04) 6px); }
+    .paper-juanzhi { background-image: 
+      linear-gradient(135deg, rgba(200,160,100,0.08) 0%, transparent 50%),
+      repeating-linear-gradient(0deg, transparent 0px, transparent 1px, rgba(180,140,80,0.02) 1px, rgba(180,140,80,0.02) 2px),
+      radial-gradient(ellipse at 50% 50%, rgba(160,120,70,0.1) 0%, transparent 60%); }
+    .paper-caizhi { background-image: 
+      radial-gradient(ellipse at 10% 90%, rgba(120,90,50,0.1) 0%, transparent 40%),
+      radial-gradient(ellipse at 90% 10%, rgba(140,100,60,0.08) 0%, transparent 35%),
+      repeating-linear-gradient(135deg, transparent 0px, transparent 5px, rgba(100,70,40,0.03) 5px, rgba(100,70,40,0.03) 10px); }
+    .paper-baizhi { background-image: 
+      linear-gradient(180deg, rgba(255,252,245,0.3) 0%, transparent 100%),
+      repeating-linear-gradient(90deg, transparent 0px, transparent 8px, rgba(200,180,140,0.02) 8px, rgba(200,180,140,0.02) 10px); }
+
+    .ink-mohei { color: #2b251d; --ink-color: #2b251d; }
+    .ink-zhuhong { color: #8b2500; --ink-color: #8b2500; }
+    .ink-zangqing { color: #1a3a4a; --ink-color: #1a3a4a; }
+    .ink-tanxiang { color: #5a4a2a; --ink-color: #5a4a2a; }
+    .ink-dai { color: #4a3a5a; --ink-color: #4a3a5a; }
+
+    .piece.ink-mohei { color: var(--ink-color); }
+    .piece.ink-zhuhong { color: var(--ink-color); }
+    .piece.ink-zangqing { color: var(--ink-color); }
+    .piece.ink-tanxiang { color: var(--ink-color); }
+    .piece.ink-dai { color: var(--ink-color); }
+
+    .border-none { border-style: solid; }
+    .border-torn { border-radius: 2px 8px 4px 6px; clip-path: polygon(0% 2%, 95% 0%, 100% 5%, 98% 100%, 3% 97%, 0% 90%); }
+    .border-frayed { border-radius: 6px 2px 8px 4px; clip-path: polygon(2% 0%, 98% 3%, 100% 95%, 97% 100%, 5% 98%, 0% 92%); }
+    .border-chipped { clip-path: polygon(0% 5%, 10% 0%, 90% 2%, 100% 8%, 98% 92%, 90% 100%, 10% 97%, 0% 95%); }
+    .border-scalloped { border-radius: 12px 4px 12px 4px; }
+    .border-irregular { clip-path: polygon(3% 2%, 97% 0%, 100% 10%, 95% 100%, 5% 98%, 0% 88%); }
+
+    .board-base { background-color: var(--theme-board-bg); }
+    .table-wood { --theme-bg: #e8dcc8; --theme-board-bg: #c9b896; background-image: 
+      repeating-linear-gradient(90deg, rgba(120,80,40,0.1) 0px, rgba(120,80,40,0.1) 1px, transparent 1px, transparent 60px),
+      linear-gradient(180deg, #d4c4a8 0%, #c9b896 100%); }
+    .table-stone { --theme-bg: #d8d5cc; --theme-board-bg: #b8b5ac; background-image: 
+      radial-gradient(ellipse at 30% 40%, rgba(80,80,80,0.1) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 60%, rgba(60,60,60,0.08) 0%, transparent 40%); }
+    .table-silk { --theme-bg: #f0e8d8; --theme-board-bg: #e0d4c0; background-image: 
+      repeating-linear-gradient(45deg, rgba(200,180,140,0.1) 0px, rgba(200,180,140,0.1) 2px, transparent 2px, transparent 8px),
+      linear-gradient(135deg, #ebe0c8 0%, #e0d4c0 100%); }
+    .table-bamboo { --theme-bg: #e5e0c8; --theme-board-bg: #d0c8a8; background-image: 
+      repeating-linear-gradient(90deg, rgba(100,120,60,0.15) 0px, rgba(100,120,60,0.15) 1px, transparent 1px, transparent 45px); }
+    .table-lacquer { --theme-bg: #2a2520; --theme-board-bg: #3a3025; color: #e8dcc8; --theme-fg: #e8dcc8; --theme-text-muted: #b8a890; }
+    .table-lacquer .panel, .table-lacquer header, .table-lacquer .modal { background: #3a3025; border-color: #5a4a35; }
+    .table-lacquer h1, .table-lacquer h2, .table-lacquer .level-name, .table-lacquer .level-card .level-stats .val, .table-lacquer .modal .result-row span:last-child { color: #d4b888; }
+    .table-lacquer .level-card { background: #4a3a2a; border-color: #6a5a45; }
+    .table-lacquer .level-card:hover:not(.locked) { background: #5a4a35; }
+    .table-lacquer .level-card.current { background: #5a4a35; }
+    .table-lacquer .level-card.locked { background: #3a3025; }
+    .table-lacquer .modal .result-row { background: #4a3a2a; }
+    .table-lacquer .stats b, .table-lacquer .level-text { color: #e8dcc8; }
+
+    .theme-panel { margin-top: 14px; padding: 12px; background: var(--theme-modal-row); border-radius: 6px; }
+    .theme-panel h3 { margin: 0 0 8px; font-size: 14px; color: var(--theme-title); }
+    .theme-panel .theme-info { display: grid; gap: 4px; font-size: 12px; color: var(--theme-text-muted); }
+    .theme-panel .theme-info div { display: flex; justify-content: space-between; }
+    .theme-panel .theme-info .theme-val { font-weight: 700; color: var(--theme-title); }
+
+    @media (max-width: 950px) { .app { grid-template-columns: 1fr; } .tray { min-height: 220px; } header { display: block; } }
+
+    .tutorial-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 200; display: none; }
+    .tutorial-overlay.active { display: block; }
+    .tutorial-highlight { position: fixed; border: 2px solid #fff; border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.65); z-index: 201; pointer-events: none; transition: all 0.3s ease; }
+    .tutorial-tooltip { position: fixed; z-index: 202; background: var(--theme-modal-bg); border: 1px solid var(--theme-modal-border); border-radius: 10px; padding: 18px 20px; max-width: 320px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); transition: all 0.3s ease; }
+    .tutorial-tooltip h3 { margin: 0 0 8px; font-size: 16px; color: var(--theme-title); }
+    .tutorial-tooltip p { margin: 0 0 12px; font-size: 14px; color: var(--theme-text-muted); line-height: 1.5; }
+    .tutorial-tooltip .tutorial-step { font-size: 12px; color: var(--theme-btn-secondary); margin-bottom: 8px; font-weight: 700; }
+    .tutorial-tooltip .tutorial-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .tutorial-tooltip .tutorial-actions button { padding: 8px 14px; font-size: 13px; }
+    .tutorial-tooltip .tutorial-actions .tutorial-skip { background: transparent; color: var(--theme-text-muted); border: 1px solid var(--theme-panel-border); }
+    .tutorial-tooltip .tutorial-actions button:disabled { cursor: not-allowed; opacity: 0.55; }
+    .tutorial-tooltip::after { content: ''; position: absolute; width: 12px; height: 12px; background: var(--theme-modal-bg); border: 1px solid var(--theme-modal-border); transform: rotate(45deg); }
+    .tutorial-tooltip.arrow-bottom::after { top: -7px; left: 50%; margin-left: -6px; border-right: none; border-bottom: none; }
+    .tutorial-tooltip.arrow-top::after { bottom: -7px; left: 50%; margin-left: -6px; border-left: none; border-top: none; }
+    .tutorial-tooltip.arrow-left::after { right: -7px; top: 50%; margin-top: -6px; border-bottom: none; border-left: none; }
+    .tutorial-tooltip.arrow-right::after { left: -7px; top: 50%; margin-top: -6px; border-top: none; border-right: none; }
+    .tutorial-mask { position: fixed; inset: 0; z-index: 199; display: none; pointer-events: none; }
+    .tutorial-mask.active { display: block; }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .tutorial-entry-btn { background: var(--theme-btn-secondary); padding: 8px 12px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+    .tutorial-entry-btn::before { content: '?'; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: #fff; color: var(--theme-btn-secondary); border-radius: 50%; font-size: 12px; font-weight: 800; }
+  </style>
 </head>
 <body>
   <header>
     <div><h1>古籍修补台</h1><div>拖拽纸片归位，沿字列和边缘修复残页。</div></div>
     <div class="header-actions">
-      <button id="dailyChallengeBtn" class="daily-entry-btn">每日残页挑战</button>
-      <button id="libraryEntryBtn" class="library-entry-btn">藏书阁</button>
-      <button id="editorEntryBtn" class="editor-entry-btn">残页编辑器</button>
-      <button id="generatorEntryBtn" class="generator-entry-btn">🔧 生成器</button>
       <button id="tutorialEntryBtn" class="tutorial-entry-btn">新手引导</button>
       <button id="resetBtn">重开本关</button>
     </div>
   </header>
-
-  <div class="game-view" id="gameView">
-    <main class="app">
-      <aside class="panel">
-        <h2>每日残页挑战</h2>
-        <div class="daily-challenge-panel" id="dailyChallengePanel"></div>
-        <h2 style="margin-top:16px">进度册</h2>
-        <div class="progress-book" id="levels"></div>
-        <h2 style="margin-top:16px">本关状态</h2>
-        <div class="stats">
-          <div>当前残页：<b class="level-text" id="levelText">1</b></div>
-          <div>当前分数：<b id="scoreText">0</b></div>
-          <div>剩余时间：<b id="timeText">120</b>秒</div>
-          <div>本页最佳得分：<b id="bestText">0</b></div>
-          <div>错误尝试：<b id="errorText">0</b>次</div>
+  <main class="app">
+    <aside class="panel">
+      <h2>进度册</h2>
+      <div class="progress-book" id="levels"></div>
+      <h2 style="margin-top:16px">本关状态</h2>
+      <div class="stats">
+        <div>当前残页：<b id="levelText">1</b></div>
+        <div>当前分数：<b id="scoreText">0</b></div>
+        <div>剩余时间：<b id="timeText">120</b>秒</div>
+        <div>本页最佳得分：<b id="bestText">0</b></div>
+      </div>
+      <div class="theme-panel">
+        <h3>当前主题</h3>
+        <div class="theme-info" id="themeInfo">
+          <div><span>纸张纹理</span><span class="theme-val" id="paperText">宣纸</span></div>
+          <div><span>墨色</span><span class="theme-val" id="inkText">墨黑</span></div>
+          <div><span>边框样式</span><span class="theme-val" id="borderText">无</span></div>
+          <div><span>背景台面</span><span class="theme-val" id="tableText">基础</span></div>
         </div>
-        <div class="theme-panel">
-          <h3>当前主题</h3>
-          <div class="theme-info" id="themeInfo">
-            <div><span>纸张纹理</span><span class="theme-val" id="paperText">宣纸</span></div>
-            <div><span>墨色</span><span class="theme-val" id="inkText">墨黑</span></div>
-            <div><span>边框样式</span><span class="theme-val" id="borderText">无</span></div>
-            <div><span>背景台面</span><span class="theme-val" id="tableText">基础</span></div>
-          </div>
-        </div>
-        <p style="margin-top:12px">纸片靠近正确格子会自动吸附。提示会高亮一个尚未归位的格子（使用提示会扣分）。</p>
-        <button id="hintBtn" class="secondary">使用提示</button>
-        <div class="toolbox-panel" id="toolboxContainer"></div>
-      </aside>
-      <section class="panel">
-        <h2>残页</h2>
-        <div class="board" id="board"></div>
-      </section>
-      <aside class="panel">
-        <h2>剩余纸片</h2>
-        <div class="tray" id="tray"></div>
-      </aside>
-    </main>
-  </div>
-
-  <div class="editor-view" id="editorView">
-    <div id="editorContainer"></div>
-  </div>
-
-  <div class="library-view" id="libraryView">
-    <div id="libraryContainer"></div>
-  </div>
-
+      </div>
+      <p style="margin-top:12px">纸片靠近正确格子会自动吸附。提示会高亮一个尚未归位的格子（使用提示会扣分）。</p>
+      <button id="hintBtn" class="secondary">使用提示</button>
+    </aside>
+    <section class="panel">
+      <h2>残页</h2>
+      <div class="board" id="board"></div>
+    </section>
+    <aside class="panel">
+      <h2>剩余纸片</h2>
+      <div class="tray" id="tray"></div>
+    </aside>
+  </main>
   <div class="overlay hidden" id="overlay">
     <div class="modal">
       <h2 id="modalTitle">修补完成</h2>
@@ -87,23 +234,738 @@
       <button id="tutorialNextBtn">开始</button>
     </div>
   </div>
-  <div class="keyboard-hint">键盘模式：方向键移动 | 空格/回车选择放置 | R/E旋转 | F翻转 | ESC取消</div>
+  <script>
+    const board = document.querySelector("#board");
+    const tray = document.querySelector("#tray");
+    const levelsEl = document.querySelector("#levels");
+    const overlay = document.querySelector("#overlay");
+    const modalTitle = document.querySelector("#modalTitle");
+    const modalResult = document.querySelector("#modalResult");
+    const nextBtn = document.querySelector("#nextBtn");
+    const retryBtn = document.querySelector("#retryBtn");
+    const scoreText = document.querySelector("#scoreText");
+    const timeText = document.querySelector("#timeText");
+    const levelText = document.querySelector("#levelText");
+    const bestText = document.querySelector("#bestText");
+    const paperText = document.querySelector("#paperText");
+    const inkText = document.querySelector("#inkText");
+    const borderText = document.querySelector("#borderText");
+    const tableText = document.querySelector("#tableText");
+    const body = document.body;
 
-  <script src="js/thesaurus.js?v=20260619"></script>
-  <script src="js/data.js?v=20260618c"></script>
-  <script src="js/generator.js?v=20260619"></script>
-  <script src="js/levelAdapter.js?v=20260619"></script>
-  <script src="js/themeRenderer.js?v=20260619"></script>
-  <script src="js/dailyChallenge.js?v=20260618c"></script>
-  <script src="js/progress.js?v=20260618c"></script>
-  <script src="js/pieceState.js?v=20260618c"></script>
-  <script src="js/toolbox.js?v=20260618c"></script>
-  <script src="js/settlement.js?v=20260618c"></script>
-  <script src="js/library.js?v=20260619"></script>
-  <script src="js/tutorial.js?v=20260618c"></script>
-  <script src="js/game.js?v=20260618c"></script>
-  <script src="js/editor.js?v=20260618c"></script>
-  <script src="js/debugPanel.js?v=20260619"></script>
-  <script src="js/app.js?v=20260619"></script>
+    const themes = {
+      paper: {
+        xuanzhi: { name: "宣纸", class: "paper-xuanzhi" },
+        mazhi: { name: "麻纸", class: "paper-mazhi" },
+        juanzhi: { name: "绢纸", class: "paper-juanzhi" },
+        caizhi: { name: "彩纸", class: "paper-caizhi" },
+        baizhi: { name: "白纸", class: "paper-baizhi" }
+      },
+      ink: {
+        mohei: { name: "墨黑", class: "ink-mohei" },
+        zhuhong: { name: "朱红", class: "ink-zhuhong" },
+        zangqing: { name: "藏青", class: "ink-zangqing" },
+        tanxiang: { name: "檀香", class: "ink-tanxiang" },
+        dai: { name: "黛色", class: "ink-dai" }
+      },
+      border: {
+        none: { name: "无", class: "border-none" },
+        torn: { name: "撕裂", class: "border-torn" },
+        frayed: { name: "磨损", class: "border-frayed" },
+        chipped: { name: "缺口", class: "border-chipped" },
+        scalloped: { name: "扇贝", class: "border-scalloped" },
+        irregular: { name: "不规则", class: "border-irregular" }
+      },
+      table: {
+        base: { name: "基础", class: "table-base" },
+        wood: { name: "木桌", class: "table-wood" },
+        stone: { name: "石桌", class: "table-stone" },
+        silk: { name: "丝缎", class: "table-silk" },
+        bamboo: { name: "竹席", class: "table-bamboo" },
+        lacquer: { name: "漆案", class: "table-lacquer" }
+      }
+    };
+
+    const puzzles = [
+      { cols: 3, rows: 2, text: ["山雨","残卷","归舟","松风","旧墨","灯影"], theme: { paper: "xuanzhi", ink: "mohei", border: "none", table: "wood" } },
+      { cols: 4, rows: 2, text: ["竹简","秋水","石桥","远钟","青灯","薄纸","行书","残印"], theme: { paper: "mazhi", ink: "zhuhong", border: "torn", table: "stone" } },
+      { cols: 3, rows: 3, text: ["云根","药谱","温火","井泉","纸背","朱批","草堂","夜读","藏印"], theme: { paper: "juanzhi", ink: "zangqing", border: "frayed", table: "silk" } },
+      { cols: 4, rows: 3, text: ["海棠","卷首","虫蛀","补纸","墨脉","断栏","夹注","边款","残页","古香","修痕","归档"], theme: { paper: "caizhi", ink: "tanxiang", border: "chipped", table: "bamboo" } },
+      { cols: 5, rows: 3, text: ["金石","拓痕","旧题","飞白","鱼尾","牌记","小篆","暗纹","碑阴","残角","书林","校勘","虫孔","云笺","收束"], theme: { paper: "baizhi", ink: "dai", border: "irregular", table: "lacquer" } }
+    ];
+
+    const STORAGE_KEY = "zfl27Progress";
+    let progress = loadProgress();
+    let current = 0;
+    let score = 0;
+    let time = 0;
+    let totalTime = 0;
+    let timer = null;
+    let pieces = [];
+    let drag = null;
+    let hintUsed = false;
+
+    function loadProgress() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const data = JSON.parse(saved);
+          if (Array.isArray(data) && data.length === puzzles.length) return data;
+        }
+      } catch (e) {}
+      return puzzles.map((_, i) => ({
+        completed: false,
+        bestScore: 0,
+        bestTime: null,
+        hintUsed: false,
+        unlocked: i === 0
+      }));
+    }
+
+    function saveProgress() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    }
+
+    function applyTheme(theme) {
+      const paperTheme = themes.paper[theme.paper];
+      const inkTheme = themes.ink[theme.ink];
+      const borderTheme = themes.border[theme.border];
+      const tableTheme = themes.table[theme.table];
+
+      body.className = "";
+      board.className = "board";
+
+      body.classList.add(tableTheme.class);
+      board.classList.add(paperTheme.class);
+
+      board.dataset.paper = paperTheme.class;
+      board.dataset.ink = inkTheme.class;
+      board.dataset.border = borderTheme.class;
+      board.dataset.table = tableTheme.class;
+
+      paperText.textContent = paperTheme.name;
+      inkText.textContent = inkTheme.name;
+      borderText.textContent = borderTheme.name;
+      tableText.textContent = tableTheme.name;
+    }
+
+    function start(index) {
+      if (!progress[index].unlocked) return;
+      current = index;
+      score = 1000;
+      totalTime = 120 - index * 8;
+      time = totalTime;
+      hintUsed = false;
+      pieces = [];
+      overlay.classList.add("hidden");
+      applyTheme(puzzles[current].theme);
+      renderLevels();
+      renderPuzzle();
+      clearInterval(timer);
+      timer = setInterval(() => {
+        time -= 1;
+        score = Math.max(0, score - 1);
+        updateHud();
+        if (time <= 0) finish(false);
+      }, 1000);
+      updateHud();
+    }
+
+    function getThemePreviewColor(theme) {
+      const paperColors = {
+        xuanzhi: "#f7ebcd",
+        mazhi: "#e8d9bc",
+        juanzhi: "#f0e4c8",
+        caizhi: "#e5d5b5",
+        baizhi: "#faf5e8"
+      };
+      const inkColors = {
+        mohei: "#2b251d",
+        zhuhong: "#8b2500",
+        zangqing: "#1a3a4a",
+        tanxiang: "#5a4a2a",
+        dai: "#4a3a5a"
+      };
+      return {
+        paper: paperColors[theme.paper] || "#f7ebcd",
+        ink: inkColors[theme.ink] || "#2b251d"
+      };
+    }
+
+    function renderLevels() {
+      levelsEl.innerHTML = puzzles.map((puzzle, i) => {
+        const p = progress[i];
+        const isCurrent = i === current;
+        let badge = "";
+        let cardClass = "";
+        if (!p.unlocked) {
+          badge = '<span class="level-badge locked-badge"><span class="lock-icon">🔒</span> 未解锁</span>';
+          cardClass = "locked";
+        } else if (p.completed) {
+          badge = '<span class="level-badge done">✓ 已完成</span>';
+        } else if (isCurrent) {
+          badge = '<span class="level-badge current-badge">进行中</span>';
+        } else {
+          badge = '<span class="level-badge" style="background:#d8c7ad;color:#5a3d20">待挑战</span>';
+        }
+        if (isCurrent && p.unlocked) cardClass += " current";
+
+        let statsHtml = "";
+        if (!p.unlocked) {
+          statsHtml = '<div class="no-record">完成前一页后解锁</div>';
+        } else if (!p.completed) {
+          statsHtml = '<div class="no-record">尚未完成</div>';
+        } else {
+          statsHtml = '<div class="level-stats">' +
+            '<div><span>最佳得分</span><span class="val">' + p.bestScore + '</span></div>' +
+            '<div><span>最快用时</span><span class="val">' + (p.bestTime !== null ? p.bestTime + '秒' : '-') + '</span></div>' +
+            '<div><span>使用提示</span><span class="val ' + (p.hintUsed ? 'hint-used' : '') + '">' + (p.hintUsed ? '是' : '否') + '</span></div>' +
+          '</div>';
+        }
+
+        const previewColors = getThemePreviewColor(puzzle.theme);
+        const previewHtml = p.unlocked ? (
+          '<div class="level-theme-preview">' +
+            '<div class="theme-dot" style="background:' + previewColors.paper + ';border-color:' + previewColors.ink + '"></div>' +
+            '<div class="theme-dot" style="background:' + previewColors.ink + '"></div>' +
+          '</div>'
+        ) : '';
+
+        return '<div class="level-card ' + cardClass + '" data-level="' + i + '">' +
+          '<div class="level-header">' +
+            '<span class="level-name">第' + (i + 1) + '页</span>' +
+            badge +
+          '</div>' +
+          statsHtml +
+          previewHtml +
+        '</div>';
+      }).join("");
+
+      document.querySelectorAll(".level-card").forEach(card => {
+        card.onclick = () => {
+          if (tutorialActive) return;
+          const idx = Number(card.dataset.level);
+          if (progress[idx].unlocked) start(idx);
+        };
+      });
+    }
+
+    function renderPuzzle() {
+      board.innerHTML = "";
+      tray.innerHTML = "";
+      const p = puzzles[current];
+      const cellW = board.clientWidth / p.cols;
+      const cellH = board.clientHeight / p.rows;
+      for (let c = 1; c < p.cols; c++) board.insertAdjacentHTML("beforeend", '<div class="gridline" style="left:'+(c*100/p.cols)+'%;top:0;width:0;height:100%"></div>');
+      for (let r = 1; r < p.rows; r++) board.insertAdjacentHTML("beforeend", '<div class="gridline" style="top:'+(r*100/p.rows)+'%;left:0;height:0;width:100%"></div>');
+      p.text.forEach((label, i) => {
+        const col = i % p.cols;
+        const row = Math.floor(i / p.cols);
+        pieces.push({ id: i, label, col, row, locked: false });
+      });
+      shuffle([...pieces]).forEach((piece, i) => createPiece(piece, i, cellW, cellH));
+    }
+
+    function createPiece(piece, i, cellW, cellH) {
+      const el = document.createElement("div");
+      const theme = puzzles[current].theme;
+      const paperClass = themes.paper[theme.paper].class;
+      const inkClass = themes.ink[theme.ink].class;
+      const borderClass = themes.border[theme.border].class;
+      el.className = "piece " + paperClass + " " + inkClass + " " + borderClass;
+      el.dataset.id = piece.id;
+      el.style.width = Math.floor(cellW - 10) + "px";
+      el.style.height = Math.floor(cellH - 10) + "px";
+      el.style.left = 12 + (i % 2) * (cellW * .72) + "px";
+      el.style.top = 12 + Math.floor(i / 2) * (cellH * .45) + "px";
+      el.innerHTML = piece.label + "<small>残片"+(piece.id+1)+"</small>";
+      tray.appendChild(el);
+      el.addEventListener("pointerdown", event => {
+        if (piece.locked) return;
+        if (tutorialActive) {
+          const step = tutorialSteps[tutorialStep];
+          if (!step.allowDrag) {
+            return;
+          }
+        }
+        drag = { el, piece, ox: event.offsetX, oy: event.offsetY };
+        el.setPointerCapture(event.pointerId);
+        tutorialOnDragStart();
+      });
+      el.addEventListener("pointermove", event => {
+        if (!drag || drag.el !== el) return;
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        const parent = target && target.closest("#board") ? board : tray;
+        if (el.parentElement !== parent) parent.appendChild(el);
+        const rect = parent.getBoundingClientRect();
+        el.style.left = event.clientX - rect.left - drag.ox + "px";
+        el.style.top = event.clientY - rect.top - drag.oy + "px";
+      });
+      el.addEventListener("pointerup", () => tryDrop(el, piece));
+    }
+
+    function tryDrop(el, piece) {
+      if (!drag) return;
+      drag = null;
+      if (el.parentElement !== board) return;
+      const p = puzzles[current];
+      const cellW = board.clientWidth / p.cols;
+      const cellH = board.clientHeight / p.rows;
+      const targetX = piece.col * cellW + 5;
+      const targetY = piece.row * cellH + 5;
+      const x = parseFloat(el.style.left);
+      const y = parseFloat(el.style.top);
+      if (Math.abs(x - targetX) < 42 && Math.abs(y - targetY) < 42) {
+        el.style.left = targetX + "px";
+        el.style.top = targetY + "px";
+        el.classList.add("locked");
+        piece.locked = true;
+        score += 80;
+        tutorialOnFirstDrop();
+        if (pieces.every(item => item.locked)) {
+          tutorialOnWin();
+          finish(true);
+        }
+      } else {
+        score = Math.max(0, score - 50);
+      }
+      updateHud();
+    }
+
+    function finish(win) {
+      clearInterval(timer);
+      const usedTime = totalTime - time;
+
+      if (win) {
+        const prev = progress[current];
+        const newBestScore = Math.max(prev.bestScore, score);
+        const newBestTime = (prev.bestTime === null || usedTime < prev.bestTime) ? usedTime : prev.bestTime;
+        progress[current] = {
+          completed: true,
+          bestScore: newBestScore,
+          bestTime: newBestTime,
+          hintUsed: prev.hintUsed || hintUsed,
+          unlocked: true
+        };
+        if (current + 1 < puzzles.length) {
+          progress[current + 1].unlocked = true;
+        }
+        saveProgress();
+      }
+
+      renderLevels();
+      updateHud();
+
+      modalTitle.textContent = win ? "🎉 残页修补完成" : "⏰ 时间耗尽";
+
+      let rows = '<div class="result-row"><span>本页得分</span><span>' + score + '</span></div>';
+      if (win) {
+        rows += '<div class="result-row"><span>用时</span><span>' + usedTime + '秒</span></div>';
+        rows += '<div class="result-row"><span>使用提示</span><span>' + (hintUsed ? '是（已记录）' : '否') + '</span></div>';
+        rows += '<div class="result-row"><span>历史最佳得分</span><span>' + progress[current].bestScore + '</span></div>';
+        rows += '<div class="result-row"><span>历史最快用时</span><span>' + (progress[current].bestTime !== null ? progress[current].bestTime + '秒' : '-') + '</span></div>';
+        if (current + 1 < puzzles.length) {
+          rows += '<div class="result-row" style="color:#3a7653"><span>下一页解锁</span><span>✓</span></div>';
+        }
+      } else {
+        rows += '<div class="result-row"><span>使用提示</span><span>' + (hintUsed ? '是' : '否') + '</span></div>';
+      }
+      modalResult.innerHTML = rows;
+
+      if (win && current < puzzles.length - 1) {
+        nextBtn.textContent = "下一页";
+        nextBtn.onclick = () => start(current + 1);
+      } else if (win) {
+        nextBtn.textContent = "全部完成！重回第一页";
+        nextBtn.onclick = () => start(0);
+      } else {
+        nextBtn.textContent = "再试一次";
+        nextBtn.onclick = () => start(current);
+      }
+      retryBtn.onclick = () => start(current);
+      overlay.classList.remove("hidden");
+    }
+
+    function updateHud() {
+      levelText.textContent = current + 1;
+      scoreText.textContent = score;
+      timeText.textContent = time;
+      bestText.textContent = progress[current].bestScore || 0;
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    document.querySelector("#hintBtn").onclick = () => {
+      if (tutorialActive) {
+        const step = tutorialSteps[tutorialStep];
+        if (step.waitFor !== "hint") return;
+      }
+      const piece = pieces.find(item => !item.locked);
+      if (!piece) return;
+      hintUsed = true;
+      tutorialOnHint();
+      const p = puzzles[current];
+      const theme = p.theme;
+      const paperClass = themes.paper[theme.paper].class;
+      const inkClass = themes.ink[theme.ink].class;
+      const borderClass = themes.border[theme.border].class;
+      const cellW = board.clientWidth / p.cols;
+      const cellH = board.clientHeight / p.rows;
+      const ghost = document.createElement("div");
+      ghost.className = "ghost " + paperClass + " " + inkClass + " " + borderClass;
+      ghost.style.left = piece.col * cellW + 5 + "px";
+      ghost.style.top = piece.row * cellH + 5 + "px";
+      ghost.style.width = cellW - 10 + "px";
+      ghost.style.height = cellH - 10 + "px";
+      ghost.textContent = "提示";
+      ghost.style.opacity = "0.6";
+      board.appendChild(ghost);
+      score = Math.max(0, score - 80);
+      setTimeout(() => ghost.remove(), 900);
+      updateHud();
+    };
+
+    document.querySelector("#resetBtn").onclick = () => {
+      if (tutorialActive) return;
+      start(current);
+    };
+
+    const TUTORIAL_KEY = "zfl27TutorialDone";
+    const tutorialMask = document.querySelector("#tutorialMask");
+    const tutorialHighlight = document.querySelector("#tutorialHighlight");
+    const tutorialTooltip = document.querySelector("#tutorialTooltip");
+    const tutorialStepText = document.querySelector("#tutorialStepText");
+    const tutorialTitle = document.querySelector("#tutorialTitle");
+    const tutorialDesc = document.querySelector("#tutorialDesc");
+    const tutorialNextBtn = document.querySelector("#tutorialNextBtn");
+    const tutorialSkipBtn = document.querySelector("#tutorialSkipBtn");
+    const tutorialEntryBtn = document.querySelector("#tutorialEntryBtn");
+
+    let tutorialActive = false;
+    let tutorialStep = 0;
+    let tutorialFirstDropDone = false;
+    let tutorialHintUsed = false;
+    let tutorialCompletedSteps = {};
+
+    const tutorialSteps = [
+      {
+        title: "欢迎来到古籍修补台",
+        desc: "在这里，你将学习如何修补古籍残页。通过拖拽纸片到正确位置，完成残页的修复。让我们开始吧！",
+        target: null,
+        position: "center",
+        arrow: null,
+        nextText: "开始学习",
+        action: "next"
+      },
+      {
+        title: "认识右侧的纸片托盘",
+        desc: "这里存放着需要修补的古籍残片。每一张纸片都有编号和文字，请试着将鼠标移到纸片上，按住并拖动它。",
+        target: "#tray",
+        position: "left",
+        arrow: "right",
+        nextText: "下一步",
+        action: "next",
+        waitFor: "dragStart",
+        allowDrag: true
+      },
+      {
+        title: "把纸片拖到残页上",
+        desc: "将纸片拖到左侧的残页区域。当纸片靠近正确位置时，会自动吸附上去。试试拖动第一张纸片吧！",
+        target: "#board",
+        position: "right",
+        arrow: "left",
+        nextText: "我知道了",
+        action: "next",
+        waitFor: "firstDrop",
+        allowDrag: true
+      },
+      {
+        title: "使用提示功能",
+        desc: "如果不知道纸片该放哪里，可以点击左侧的「使用提示」按钮，它会高亮显示一个尚未归位的位置。使用提示会扣减分数哦。",
+        target: "#hintBtn",
+        position: "right",
+        arrow: "left",
+        nextText: "我知道了",
+        action: "next",
+        waitFor: "hint"
+      },
+      {
+        title: "完成修补，恭喜通关！",
+        desc: "继续把所有纸片都拖到正确位置。全部归位后，残页就修补完成啦，届时会记录引导完成状态。",
+        target: "#board",
+        position: "right",
+        arrow: "left",
+        nextText: "完成本关后继续",
+        action: "finish",
+        waitFor: "win",
+        allowDrag: true
+      }
+    ];
+
+    function isTutorialDone() {
+      return localStorage.getItem(TUTORIAL_KEY) === "true";
+    }
+
+    function markTutorialDone() {
+      localStorage.setItem(TUTORIAL_KEY, "true");
+    }
+
+    function startTutorial() {
+      tutorialActive = true;
+      tutorialStep = 0;
+      tutorialFirstDropDone = false;
+      tutorialHintUsed = false;
+      tutorialCompletedSteps = {};
+      start(0);
+      clearInterval(timer);
+      time = totalTime;
+      score = 1000;
+      updateHud();
+      showTutorialStep(0);
+    }
+
+    function showTutorialStep(stepIdx) {
+      tutorialStep = stepIdx;
+      const step = tutorialSteps[stepIdx];
+
+      tutorialStepText.textContent = "第 " + (stepIdx + 1) + " 步 / 共 " + tutorialSteps.length + " 步";
+      tutorialTitle.textContent = step.title;
+      tutorialDesc.textContent = step.desc;
+      tutorialNextBtn.textContent = step.nextText;
+      tutorialNextBtn.disabled = isTutorialStepWaiting(step);
+
+      tutorialTooltip.classList.remove("hidden");
+      tutorialMask.classList.add("active");
+      tutorialHighlight.classList.remove("hidden");
+      tutorialTooltip.classList.remove("arrow-bottom", "arrow-top", "arrow-left", "arrow-right");
+
+      if (step.arrow) {
+        tutorialTooltip.classList.add("arrow-" + step.arrow);
+      }
+
+      if (step.target) {
+        const targetEl = document.querySelector(step.target);
+        if (targetEl) {
+          positionHighlight(targetEl);
+          positionTooltip(targetEl, step.position);
+        }
+      } else {
+        positionCenter();
+      }
+
+      updateTutorialControls();
+    }
+
+    function positionHighlight(el) {
+      const rect = el.getBoundingClientRect();
+      const padding = 8;
+      tutorialHighlight.style.left = (rect.left - padding) + "px";
+      tutorialHighlight.style.top = (rect.top - padding) + "px";
+      tutorialHighlight.style.width = (rect.width + padding * 2) + "px";
+      tutorialHighlight.style.height = (rect.height + padding * 2) + "px";
+    }
+
+    function positionTooltip(el, position) {
+      const rect = el.getBoundingClientRect();
+      const tooltipRect = tutorialTooltip.getBoundingClientRect();
+      let left, top;
+      const offset = 16;
+
+      switch (position) {
+        case "left":
+          left = rect.left - tooltipRect.width - offset;
+          top = rect.top + rect.height / 2 - tooltipRect.height / 2;
+          break;
+        case "right":
+          left = rect.right + offset;
+          top = rect.top + rect.height / 2 - tooltipRect.height / 2;
+          break;
+        case "top":
+          left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+          top = rect.top - tooltipRect.height - offset;
+          break;
+        case "bottom":
+          left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+          top = rect.bottom + offset;
+          break;
+      }
+
+      left = Math.max(16, Math.min(left, window.innerWidth - tooltipRect.width - 16));
+      top = Math.max(16, Math.min(top, window.innerHeight - tooltipRect.height - 16));
+
+      tutorialTooltip.style.left = left + "px";
+      tutorialTooltip.style.top = top + "px";
+    }
+
+    function positionCenter() {
+      tutorialHighlight.style.left = "-9999px";
+      tutorialHighlight.style.top = "-9999px";
+      tutorialHighlight.style.width = "0";
+      tutorialHighlight.style.height = "0";
+
+      const tooltipRect = tutorialTooltip.getBoundingClientRect();
+      tutorialTooltip.style.left = (window.innerWidth / 2 - tooltipRect.width / 2) + "px";
+      tutorialTooltip.style.top = (window.innerHeight / 2 - tooltipRect.height / 2) + "px";
+    }
+
+    function nextTutorialStep() {
+      const step = tutorialSteps[tutorialStep];
+
+      if (isTutorialStepWaiting(step)) return;
+
+      if (step.action === "finish") {
+        endTutorial();
+        return;
+      }
+
+      if (tutorialStep < tutorialSteps.length - 1) {
+        showTutorialStep(tutorialStep + 1);
+      } else {
+        endTutorial();
+      }
+    }
+
+    function completeTutorialStep(expectedWait) {
+      if (!tutorialActive) return;
+      const step = tutorialSteps[tutorialStep];
+      if (step.waitFor !== expectedWait) return;
+      tutorialCompletedSteps[tutorialStep] = true;
+      updateTutorialControls();
+    }
+
+    function updateTutorialControls() {
+      const step = tutorialSteps[tutorialStep];
+      tutorialNextBtn.disabled = isTutorialStepWaiting(step);
+    }
+
+    function isTutorialStepWaiting(step) {
+      return Boolean(step.waitFor && !tutorialCompletedSteps[tutorialStep]);
+    }
+
+    function endTutorial() {
+      tutorialActive = false;
+      tutorialTooltip.classList.add("hidden");
+      tutorialMask.classList.remove("active");
+      tutorialHighlight.classList.add("hidden");
+      markTutorialDone();
+      clearInterval(timer);
+      timer = setInterval(() => {
+        time -= 1;
+        score = Math.max(0, score - 1);
+        updateHud();
+        if (time <= 0) finish(false);
+      }, 1000);
+    }
+
+    function skipTutorial() {
+      tutorialActive = false;
+      tutorialTooltip.classList.add("hidden");
+      tutorialMask.classList.remove("active");
+      tutorialHighlight.classList.add("hidden");
+      markTutorialDone();
+      clearInterval(timer);
+      timer = setInterval(() => {
+        time -= 1;
+        score = Math.max(0, score - 1);
+        updateHud();
+        if (time <= 0) finish(false);
+      }, 1000);
+    }
+
+    function tutorialOnDragStart() {
+      if (!tutorialActive) return;
+      const step = tutorialSteps[tutorialStep];
+      if (step.waitFor === "dragStart") {
+        completeTutorialStep("dragStart");
+        setTimeout(() => {
+          if (tutorialStep === 1) {
+            nextTutorialStep();
+          }
+        }, 500);
+      }
+    }
+
+    function tutorialOnFirstDrop() {
+      if (!tutorialActive) return;
+      if (tutorialFirstDropDone) return;
+      tutorialFirstDropDone = true;
+      const step = tutorialSteps[tutorialStep];
+      if (step.waitFor === "firstDrop") {
+        completeTutorialStep("firstDrop");
+        setTimeout(() => {
+          if (tutorialStep === 2) {
+            nextTutorialStep();
+          }
+        }, 800);
+      }
+    }
+
+    function tutorialOnHint() {
+      if (!tutorialActive) return;
+      if (tutorialHintUsed) return;
+      tutorialHintUsed = true;
+      const step = tutorialSteps[tutorialStep];
+      if (step.waitFor === "hint") {
+        completeTutorialStep("hint");
+        setTimeout(() => {
+          if (tutorialStep === 3) {
+            nextTutorialStep();
+          }
+        }, 1200);
+      }
+    }
+
+    function tutorialOnWin() {
+      if (!tutorialActive) return;
+      completeTutorialStep("win");
+      endTutorial();
+    }
+
+    tutorialNextBtn.onclick = () => {
+      nextTutorialStep();
+    };
+
+    tutorialSkipBtn.onclick = () => {
+      skipTutorial();
+    };
+
+    tutorialEntryBtn.onclick = () => {
+      startTutorial();
+    };
+
+    window.addEventListener("resize", () => {
+      if (!tutorialActive) return;
+      const step = tutorialSteps[tutorialStep];
+      if (step.target) {
+        const targetEl = document.querySelector(step.target);
+        if (targetEl) {
+          positionHighlight(targetEl);
+          positionTooltip(targetEl, step.position);
+        }
+      } else {
+        positionCenter();
+      }
+    });
+
+    let startIdx = 0;
+    for (let i = puzzles.length - 1; i >= 0; i--) {
+      if (progress[i].unlocked && !progress[i].completed) {
+        startIdx = i;
+        break;
+      }
+    }
+    if (!progress[startIdx].unlocked) startIdx = 0;
+    start(startIdx);
+
+    if (!isTutorialDone()) {
+      setTimeout(() => startTutorial(), 300);
+    }
+  </script>
 </body>
 </html>
