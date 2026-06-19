@@ -2676,3 +2676,201 @@ button:disabled { background: var(--theme-btn-disabled); cursor: not-allowed; op
   .gen-theme-grid { grid-template-columns: repeat(2, 1fr); }
   .gen-text-list { grid-template-columns: repeat(2, 1fr); }
 }
+
+.paper-xuanzhi.has-custom-theme,
+.paper-mazhi.has-custom-theme,
+.paper-juanzhi.has-custom-theme,
+.paper-caizhi.has-custom-theme,
+.paper-baizhi.has-custom-theme {
+  background-color: var(--custom-paper-color);
+  background-blend-mode: multiply;
+}
+
+.piece.has-custom-theme {
+  background-color: var(--custom-paper-color);
+  background-blend-mode: multiply;
+}
+
+.ghost.has-custom-theme {
+  background-color: var(--custom-paper-color);
+  background-blend-mode: multiply;
+}
+
+.editor-preview-board.has-custom-theme {
+  background-color: var(--custom-table-color, var(--theme-board-bg));
+}
+
+.table-base,
+.table-wood,
+.table-stone,
+.table-silk,
+.table-bamboo,
+.table-lacquer {
+  background-color: var(--custom-table-color, var(--theme-board-bg));
+}
+
+body {
+  background-color: var(--custom-table-color);
+}
+
+.custom-color-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--theme-text-muted);
+  margin-left: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.custom-color-toggle input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.custom-color-picker {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--theme-modal-row);
+  border-radius: 6px;
+  border: 1px dashed var(--theme-panel-border);
+}
+
+.custom-color-picker.active {
+  display: flex;
+}
+
+.custom-color-picker input[type="color"] {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+}
+
+.custom-color-picker input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.custom-color-picker input[type="color"]::-webkit-color-swatch {
+  border: 2px solid var(--theme-panel-border);
+  border-radius: 4px;
+}
+
+.custom-color-picker .color-value {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--theme-text-muted);
+}
+
+.saved-theme-picker {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--theme-panel-border);
+}
+
+.saved-theme-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.saved-theme-empty {
+  font-size: 12px;
+  color: var(--theme-text-muted);
+  padding: 10px;
+  background: var(--theme-modal-row);
+  border-radius: 6px;
+  text-align: center;
+  width: 100%;
+}
+
+.saved-theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 2px solid var(--theme-panel-border);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 90px;
+}
+
+.saved-theme-card:hover {
+  border-color: var(--theme-btn-bg);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.saved-theme-card.active {
+  border-color: var(--theme-btn-bg);
+  background: var(--theme-btn-bg);
+}
+
+.saved-theme-card.active .saved-theme-name {
+  color: #fff;
+}
+
+.saved-theme-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.saved-theme-paper {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+
+.saved-theme-ink-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.2);
+}
+
+.saved-theme-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-title);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-save-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--theme-panel-border);
+}
+
+.theme-save-actions .danger {
+  background: #a33a3a;
+  border-color: #a33a3a;
+}
+
+.theme-save-actions .danger:hover {
+  background: #8b2e2e;
+}

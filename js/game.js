@@ -145,10 +145,42 @@ const AppGame = (() => {
     board.dataset.border = borderTheme.class;
     board.dataset.table = tableTheme.class;
 
-    paperText.textContent = paperTheme.name;
-    inkText.textContent = inkTheme.name;
+    const hasCustomColors = theme.customColors && (
+      theme.customColors.paperColor ||
+      theme.customColors.inkColor ||
+      theme.customColors.tableColor
+    );
+    if (hasCustomColors) {
+      board.classList.add("has-custom-theme");
+      if (theme.customColors.paperColor) {
+        board.style.setProperty("--custom-paper-color", theme.customColors.paperColor);
+      } else {
+        board.style.removeProperty("--custom-paper-color");
+      }
+      if (theme.customColors.inkColor) {
+        board.style.setProperty("--custom-ink-color", theme.customColors.inkColor);
+      } else {
+        board.style.removeProperty("--custom-ink-color");
+      }
+    } else {
+      board.classList.remove("has-custom-theme");
+      board.style.removeProperty("--custom-paper-color");
+      board.style.removeProperty("--custom-ink-color");
+    }
+    if (theme.customColors && theme.customColors.tableColor) {
+      body.style.setProperty("--custom-table-color", theme.customColors.tableColor);
+    } else {
+      body.style.removeProperty("--custom-table-color");
+    }
+
+    const customPaperColor = theme.customColors && theme.customColors.paperColor;
+    const customInkColor = theme.customColors && theme.customColors.inkColor;
+    const customTableColor = theme.customColors && theme.customColors.tableColor;
+
+    paperText.textContent = customPaperColor ? (paperTheme.name + " (" + customPaperColor + ")") : paperTheme.name;
+    inkText.textContent = customInkColor ? (inkTheme.name + " (" + customInkColor + ")") : inkTheme.name;
     borderText.textContent = borderTheme.name;
-    tableText.textContent = tableTheme.name;
+    tableText.textContent = customTableColor ? (tableTheme.name + " (" + customTableColor + ")") : tableTheme.name;
   }
 
   function start(index, options) {
@@ -918,6 +950,21 @@ const AppGame = (() => {
     el.style.width = Math.floor(cellW - 10) + "px";
     el.style.height = Math.floor(cellH - 10) + "px";
 
+    const hasCustomColors = puzzle.customColors && (
+      puzzle.customColors.paperColor ||
+      puzzle.customColors.inkColor
+    );
+    if (hasCustomColors) {
+      el.classList.add("has-custom-theme");
+      if (puzzle.customColors.paperColor) {
+        el.style.setProperty("--custom-paper-color", puzzle.customColors.paperColor);
+      }
+      if (puzzle.customColors.inkColor) {
+        el.style.setProperty("--custom-ink-color", puzzle.customColors.inkColor);
+        el.style.color = puzzle.customColors.inkColor;
+      }
+    }
+
     const trayW = tray.clientWidth || 260;
     const pieceW = cellW * 0.72;
     const pieceH = cellH * 0.45;
@@ -1117,7 +1164,7 @@ const AppGame = (() => {
     if (isDailyMode) {
       if (win) {
         const colophon = AppSettlement.generateColophon();
-        AppLibrary.addOrUpdateEntry(currentPuzzle.id, {
+        const entry = {
           name: currentPuzzle.name,
           text: currentPuzzle.text,
           theme: currentPuzzle.theme,
@@ -1131,7 +1178,11 @@ const AppGame = (() => {
           completionDate: Date.now(),
           daily: true,
           dailyDate: currentPuzzle.dailyDate
-        });
+        };
+        if (currentPuzzle.customColors) {
+          entry.customColors = { ...currentPuzzle.customColors };
+        }
+        AppLibrary.addOrUpdateEntry(currentPuzzle.id, entry);
       }
       if (onDailyFinish) {
         onDailyFinish({
@@ -1158,7 +1209,7 @@ const AppGame = (() => {
       if (currentIndex + 1 < allPuzzles.length) {
         progress.unlockNext(currentIndex);
       }
-      AppLibrary.addOrUpdateEntry(currentPuzzle.id, {
+      const libraryEntry = {
         name: currentPuzzle.name,
         text: currentPuzzle.text,
         theme: currentPuzzle.theme,
@@ -1170,7 +1221,11 @@ const AppGame = (() => {
         rating: AppSettlement.getRating(),
         colophon: colophon,
         completionDate: Date.now()
-      });
+      };
+      if (currentPuzzle.customColors) {
+        libraryEntry.customColors = { ...currentPuzzle.customColors };
+      }
+      AppLibrary.addOrUpdateEntry(currentPuzzle.id, libraryEntry);
     }
 
     if (onLevelsRefresh && !isTempMode && !isDailyMode && !isTempDailyMode) onLevelsRefresh();
@@ -1288,6 +1343,15 @@ const AppGame = (() => {
     ghost.style.height = cellH - 10 + "px";
     ghost.textContent = "提示";
     ghost.style.opacity = "0.6";
+    if (puzzle.customColors && puzzle.customColors.paperColor) {
+      ghost.style.setProperty("--custom-paper-color", puzzle.customColors.paperColor);
+      ghost.classList.add("has-custom-theme");
+    }
+    if (puzzle.customColors && puzzle.customColors.inkColor) {
+      ghost.style.setProperty("--custom-ink-color", puzzle.customColors.inkColor);
+      ghost.style.color = puzzle.customColors.inkColor;
+      ghost.classList.add("has-custom-theme");
+    }
     board.appendChild(ghost);
     const penalty = puzzle.hintPenalty || 80;
     score = Math.max(0, score - penalty);

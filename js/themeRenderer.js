@@ -116,6 +116,36 @@ const AppThemeRenderer = (() => {
       document.body.classList.remove(...Object.values(AppData.themes.table).map(t => t.class));
       document.body.classList.add(tableClass);
     }
+
+    if (theme.customColors) {
+      if (theme.customColors.paperColor) {
+        element.style.setProperty("--custom-paper-color", theme.customColors.paperColor);
+      } else {
+        element.style.removeProperty("--custom-paper-color");
+      }
+      if (theme.customColors.inkColor) {
+        element.style.setProperty("--custom-ink-color", theme.customColors.inkColor);
+      } else {
+        element.style.removeProperty("--custom-ink-color");
+      }
+      if (theme.customColors.tableColor && element.closest("body")) {
+        document.body.style.setProperty("--custom-table-color", theme.customColors.tableColor);
+      } else if (element.closest("body")) {
+        document.body.style.removeProperty("--custom-table-color");
+      }
+      if (theme.customColors.paperColor || theme.customColors.inkColor || theme.customColors.tableColor) {
+        element.classList.add("has-custom-theme");
+      } else {
+        element.classList.remove("has-custom-theme");
+      }
+    } else {
+      element.classList.remove("has-custom-theme");
+      element.style.removeProperty("--custom-paper-color");
+      element.style.removeProperty("--custom-ink-color");
+      if (element.closest("body")) {
+        document.body.style.removeProperty("--custom-table-color");
+      }
+    }
   }
 
   function createPreview(theme, themeId = null) {
@@ -126,14 +156,22 @@ const AppThemeRenderer = (() => {
       accent: "#c08850"
     };
 
+    const previewColors = AppData.getThemePreviewColor(theme);
+    const paperName = AppData.themes.paper[theme.paper]?.name || theme.paper;
+    const inkName = AppData.themes.ink[theme.ink]?.name || theme.ink;
+    const borderName = AppData.themes.border[theme.border]?.name || theme.border;
+    const tableName = AppData.themes.table[theme.table]?.name || theme.table;
+
     return {
       colors,
-      paperColor: AppData.paperColors[theme.paper] || "#f7ebcd",
-      inkColor: AppData.inkColors[theme.ink] || "#2b251d",
-      paperName: AppData.themes.paper[theme.paper]?.name || theme.paper,
-      inkName: AppData.themes.ink[theme.ink]?.name || theme.ink,
-      borderName: AppData.themes.border[theme.border]?.name || theme.border,
-      tableName: AppData.themes.table[theme.table]?.name || theme.table
+      paperColor: previewColors.paper,
+      inkColor: previewColors.ink,
+      tableColor: previewColors.table,
+      paperName,
+      inkName,
+      borderName,
+      tableName,
+      hasCustomColors: !!(theme.customColors && (theme.customColors.paperColor || theme.customColors.inkColor || theme.customColors.tableColor))
     };
   }
 

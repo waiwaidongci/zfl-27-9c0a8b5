@@ -68,13 +68,17 @@ const App = (() => {
 
           const libraryEntry = AppLibrary.loadLibrary().find(e => e.puzzleId === editingId);
           if (libraryEntry) {
-            AppLibrary.addOrUpdateEntry(editingId, {
+            const updateData = {
               name: puzzle.name,
               text: puzzle.text,
               cols: puzzle.cols,
               rows: puzzle.rows,
               theme: puzzle.theme
-            });
+            };
+            if (puzzle.customColors) {
+              updateData.customColors = { ...puzzle.customColors };
+            }
+            AppLibrary.addOrUpdateEntry(editingId, updateData);
           }
 
           refreshLevels();

@@ -257,9 +257,10 @@ const AppLibrary = (() => {
     return div.innerHTML;
   }
 
-  function renderFullPageText(entry) {
+  function renderFullPageText(entry, effectiveTheme) {
     if (!entry.text || !entry.cols || !entry.rows) return "";
-    let html = '<div class="lib-full-text-grid" style="grid-template-columns:repeat(' + entry.cols + ',1fr)">';
+    const previewColors = effectiveTheme ? AppData.getThemePreviewColor(effectiveTheme) : { paper: "#f7ebcd", ink: "#2b251d" };
+    let html = '<div class="lib-full-text-grid" style="grid-template-columns:repeat(' + entry.cols + ',1fr);background-color:' + previewColors.paper + ';color:' + previewColors.ink + '">';
     entry.text.forEach(t => {
       html += '<div class="lib-full-text-cell">' + escapeHtml(t) + '</div>';
     });
@@ -267,16 +268,24 @@ const AppLibrary = (() => {
     return html;
   }
 
-  function renderThemeInfo(theme) {
+  function renderThemeInfo(theme, customColors) {
     if (!theme) return "";
     const paperName = AppData.themes.paper[theme.paper] ? AppData.themes.paper[theme.paper].name : theme.paper;
     const inkName = AppData.themes.ink[theme.ink] ? AppData.themes.ink[theme.ink].name : theme.ink;
     const borderName = AppData.themes.border[theme.border] ? AppData.themes.border[theme.border].name : theme.border;
     const tableName = AppData.themes.table[theme.table] ? AppData.themes.table[theme.table].name : theme.table;
-    return '<div class="lib-theme-row"><span>纸张</span><span>' + paperName + '</span></div>' +
-           '<div class="lib-theme-row"><span>墨色</span><span>' + inkName + '</span></div>' +
+    let paperDisplay = paperName;
+    let inkDisplay = inkName;
+    let tableDisplay = tableName;
+    if (customColors) {
+      if (customColors.paperColor) paperDisplay += ' <span style="color:var(--theme-text-muted)">(' + customColors.paperColor + ')</span>';
+      if (customColors.inkColor) inkDisplay += ' <span style="color:var(--theme-text-muted)">(' + customColors.inkColor + ')</span>';
+      if (customColors.tableColor) tableDisplay += ' <span style="color:var(--theme-text-muted)">(' + customColors.tableColor + ')</span>';
+    }
+    return '<div class="lib-theme-row"><span>纸张</span><span>' + paperDisplay + '</span></div>' +
+           '<div class="lib-theme-row"><span>墨色</span><span>' + inkDisplay + '</span></div>' +
            '<div class="lib-theme-row"><span>边框</span><span>' + borderName + '</span></div>' +
-           '<div class="lib-theme-row"><span>台面</span><span>' + tableName + '</span></div>';
+           '<div class="lib-theme-row"><span>台面</span><span>' + tableDisplay + '</span></div>';
   }
 
   function renderSortControls() {
@@ -325,7 +334,11 @@ const AppLibrary = (() => {
   }
 
   function renderCard(entry) {
-    const previewColors = entry.theme ? AppData.getThemePreviewColor(entry.theme) : { paper: "#f7ebcd", ink: "#2b251d" };
+    const effectiveTheme = entry.theme ? { ...entry.theme } : null;
+    if (effectiveTheme && entry.customColors) {
+      effectiveTheme.customColors = { ...entry.customColors };
+    }
+    const previewColors = effectiveTheme ? AppData.getThemePreviewColor(effectiveTheme) : { paper: "#f7ebcd", ink: "#2b251d" };
     let ratingClass = "";
     if (entry.rating) {
       if (entry.rating.includes("完美")) ratingClass = "lib-rating-perfect";
@@ -363,7 +376,7 @@ const AppLibrary = (() => {
     html += '<div class="lib-card-body">';
 
     html += '<div class="lib-card-preview">';
-    html += renderFullPageText(entry);
+    html += renderFullPageText(entry, effectiveTheme);
     html += '<div class="lib-theme-dots"><div class="theme-dot" style="background:' + previewColors.paper + ';border-color:' + previewColors.ink + '"></div><div class="theme-dot" style="background:' + previewColors.ink + '"></div></div>';
     html += '</div>';
 
@@ -371,7 +384,7 @@ const AppLibrary = (() => {
     html += '<div class="lib-stat-row"><span>最佳得分</span><span class="lib-stat-val">' + (entry.bestScore || 0) + '</span></div>';
     html += '<div class="lib-stat-row"><span>最快用时</span><span class="lib-stat-val">' + (entry.bestTime !== null ? entry.bestTime + '秒' : '-') + '</span></div>';
     html += '<div class="lib-stat-row"><span>使用提示</span><span class="lib-stat-val ' + (entry.hintUsed ? 'lib-hint-yes' : '') + '">' + (entry.hintUsed ? '是' : '否') + '</span></div>';
-    html += '<div class="lib-theme-info">' + renderThemeInfo(entry.theme) + '</div>';
+    html += '<div class="lib-theme-info">' + renderThemeInfo(effectiveTheme, entry.customColors) + '</div>';
     html += '</div>';
 
     html += '</div>';

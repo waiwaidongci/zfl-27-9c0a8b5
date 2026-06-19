@@ -10,6 +10,8 @@ const AppEditor = (() => {
     rows: 2,
     text: ["残片1", "残片2", "残片3", "残片4", "残片5", "残片6"],
     theme: { paper: "xuanzhi", ink: "mohei", border: "none", table: "wood" },
+    customColors: { paperColor: null, inkColor: null, tableColor: null },
+    savedThemeId: null,
     timeLimit: 120,
     hintPenalty: 80,
     scatterRule: "random",
@@ -51,6 +53,10 @@ const AppEditor = (() => {
     editorState.rows = puzzle.rows || 2;
     editorState.text = puzzle.text ? [...puzzle.text] : ["残片1", "残片2", "残片3", "残片4", "残片5", "残片6"];
     editorState.theme = puzzle.theme ? { ...puzzle.theme } : { paper: "xuanzhi", ink: "mohei", border: "none", table: "wood" };
+    editorState.customColors = puzzle.customColors
+      ? { ...puzzle.customColors }
+      : { paperColor: null, inkColor: null, tableColor: null };
+    editorState.savedThemeId = puzzle.savedThemeId || null;
     editorState.timeLimit = puzzle.timeLimit || 120;
     editorState.hintPenalty = puzzle.hintPenalty || 80;
     editorState.scatterRule = puzzle.scatterRule || "random";
@@ -76,6 +82,8 @@ const AppEditor = (() => {
       rows: 2,
       text: ["残片1", "残片2", "残片3", "残片4", "残片5", "残片6"],
       theme: { paper: "xuanzhi", ink: "mohei", border: "none", table: "wood" },
+      customColors: { paperColor: null, inkColor: null, tableColor: null },
+      savedThemeId: null,
       timeLimit: 120,
       hintPenalty: 80,
       scatterRule: "random",
@@ -107,7 +115,7 @@ const AppEditor = (() => {
   }
 
   function buildPuzzle() {
-    return {
+    const puzzle = {
       name: editorState.name.trim(),
       cols: editorState.cols,
       rows: editorState.rows,
@@ -122,6 +130,18 @@ const AppEditor = (() => {
       initialFlipScrambled: editorState.initialFlipScrambled,
       availableTools: [...editorState.availableTools]
     };
+    const hasCustomColors = editorState.customColors && (
+      editorState.customColors.paperColor ||
+      editorState.customColors.inkColor ||
+      editorState.customColors.tableColor
+    );
+    if (hasCustomColors) {
+      puzzle.customColors = { ...editorState.customColors };
+    }
+    if (editorState.savedThemeId) {
+      puzzle.savedThemeId = editorState.savedThemeId;
+    }
+    return puzzle;
   }
 
   function handleSave() {
@@ -205,17 +225,41 @@ const AppEditor = (() => {
 
           <div class="editor-section" style="margin-top:16px">
             <h2>主题设置</h2>
+            <div class="saved-theme-picker">
+              <h3>已收藏主题</h3>
+              <div class="saved-theme-row" id="savedThemePicker">
+                ${renderSavedThemePicker()}
+              </div>
+            </div>
             <div class="theme-picker-group">
               <div>
-                <h3>纸张纹理</h3>
+                <h3>纸张纹理
+                  <label class="custom-color-toggle">
+                    <input type="checkbox" id="customPaperColorToggle" ${editorState.customColors.paperColor ? "checked" : ""}>
+                    <span>自定义颜色</span>
+                  </label>
+                </h3>
                 <div class="theme-picker-row" id="paperPicker">
                   ${renderThemePicker("paper")}
                 </div>
+                <div class="custom-color-picker ${editorState.customColors.paperColor ? "active" : ""}" id="customPaperColorPicker">
+                  <input type="color" id="customPaperColor" value="${editorState.customColors.paperColor || AppData.paperColors[editorState.theme.paper] || '#f7ebcd'}">
+                  <span class="color-value" id="customPaperColorValue">${editorState.customColors.paperColor || ''}</span>
+                </div>
               </div>
               <div>
-                <h3>墨色</h3>
+                <h3>墨色
+                  <label class="custom-color-toggle">
+                    <input type="checkbox" id="customInkColorToggle" ${editorState.customColors.inkColor ? "checked" : ""}>
+                    <span>自定义颜色</span>
+                  </label>
+                </h3>
                 <div class="theme-picker-row" id="inkPicker">
                   ${renderThemePicker("ink")}
+                </div>
+                <div class="custom-color-picker ${editorState.customColors.inkColor ? "active" : ""}" id="customInkColorPicker">
+                  <input type="color" id="customInkColor" value="${editorState.customColors.inkColor || AppData.inkColors[editorState.theme.ink] || '#2b251d'}">
+                  <span class="color-value" id="customInkColorValue">${editorState.customColors.inkColor || ''}</span>
                 </div>
               </div>
               <div>
@@ -225,11 +269,24 @@ const AppEditor = (() => {
                 </div>
               </div>
               <div>
-                <h3>背景台面</h3>
+                <h3>背景台面
+                  <label class="custom-color-toggle">
+                    <input type="checkbox" id="customTableColorToggle" ${editorState.customColors.tableColor ? "checked" : ""}>
+                    <span>自定义颜色</span>
+                  </label>
+                </h3>
                 <div class="theme-picker-row" id="tablePicker">
                   ${renderThemePicker("table")}
                 </div>
+                <div class="custom-color-picker ${editorState.customColors.tableColor ? "active" : ""}" id="customTableColorPicker">
+                  <input type="color" id="customTableColor" value="${editorState.customColors.tableColor || AppData.tableColors[editorState.theme.table] || '#d9caa8'}">
+                  <span class="color-value" id="customTableColorValue">${editorState.customColors.tableColor || ''}</span>
+                </div>
               </div>
+            </div>
+            <div class="theme-save-actions">
+              <button class="secondary" id="saveThemeBtn">💾 收藏此主题</button>
+              ${editorState.savedThemeId ? `<button class="secondary danger" id="deleteSavedThemeBtn">🗑️ 删除收藏</button>` : ''}
             </div>
           </div>
         </div>
@@ -331,7 +388,8 @@ const AppEditor = (() => {
     const items = AppData.themes[category];
     const current = editorState.theme[category];
     const colors = category === "paper" ? AppData.paperColors :
-                   category === "ink" ? AppData.inkColors : null;
+                   category === "ink" ? AppData.inkColors :
+                   category === "table" ? AppData.tableColors : null;
     let html = "";
     Object.keys(items).forEach(key => {
       const item = items[key];
@@ -344,6 +402,32 @@ const AppEditor = (() => {
         html += `<button class="theme-picker-btn ${isActive ? "active" : ""}"
                  data-category="${category}" data-key="${key}">${item.name}</button>`;
       }
+    });
+    return html;
+  }
+
+  function renderSavedThemePicker() {
+    const savedThemes = AppData.getCustomThemes();
+    if (savedThemes.length === 0) {
+      return '<div class="saved-theme-empty">暂无收藏的主题，调整好设置后点击"收藏此主题"</div>';
+    }
+    let html = "";
+    savedThemes.forEach(theme => {
+      const isActive = editorState.savedThemeId === theme.id;
+      const previewColors = AppData.getThemePreviewColor({
+        paper: theme.paper,
+        ink: theme.ink,
+        table: theme.table,
+        customColors: theme.customColors
+      });
+      html += `<button class="saved-theme-card ${isActive ? "active" : ""}" data-theme-id="${theme.id}" title="${escapeHtml(theme.name)}">
+        <div class="saved-theme-preview" style="background:${previewColors.table}">
+          <div class="saved-theme-paper" style="background:${previewColors.paper}">
+            <div class="saved-theme-ink-dot" style="background:${previewColors.ink}"></div>
+          </div>
+        </div>
+        <div class="saved-theme-name">${escapeHtml(theme.name)}</div>
+      </button>`;
     });
     return html;
   }
@@ -391,11 +475,12 @@ const AppEditor = (() => {
   function renderPreviewBoard() {
     const paperClass = AppData.themes.paper[editorState.theme.paper].class;
     const borderClass = AppData.themes.border[editorState.theme.border].class;
-    const inkColor = AppData.inkColors[editorState.theme.ink];
-    const tableClass = AppData.themes.table[editorState.theme.table].class;
+    const inkColor = editorState.customColors.inkColor || AppData.inkColors[editorState.theme.ink];
+    const paperColor = editorState.customColors.paperColor || AppData.paperColors[editorState.theme.paper];
+    const tableColor = editorState.customColors.tableColor || getBoardBgForTable(editorState.theme.table);
 
-    const boardStyle = `--theme-board-bg: ${getBoardBgForTable(editorState.theme.table)};`;
-    let html = `<div class="editor-preview-board ${paperClass} ${tableClass}" id="previewBoard" style="${boardStyle}">`;
+    const boardStyle = `--theme-board-bg: ${tableColor};--custom-paper-color: ${paperColor};--custom-ink-color: ${inkColor};`;
+    let html = `<div class="editor-preview-board ${paperClass} ${editorState.customColors.paperColor || editorState.customColors.inkColor ? 'has-custom-theme' : ''}" id="previewBoard" style="${boardStyle}">`;
 
     for (let r = 0; r < editorState.rows; r++) {
       for (let c = 0; c < editorState.cols; c++) {
@@ -406,7 +491,7 @@ const AppEditor = (() => {
         const hPct = (100 / editorState.rows) + "%";
         const label = editorState.text[idx] || ("残片" + (idx + 1));
         html += `<div class="editor-preview-cell ${borderClass}"
-                  style="left:${leftPct};top:${topPct};width:${wPct};height:${hPct};color:${inkColor}">
+                  style="left:${leftPct};top:${topPct};width:${wPct};height:${hPct};color:${inkColor};background:${paperColor}">
                   ${escapeHtml(label)}
                 </div>`;
       }
@@ -451,8 +536,65 @@ const AppEditor = (() => {
       const picker = document.querySelector("#" + cat + "Picker");
       if (picker) picker.innerHTML = renderThemePicker(cat);
     });
+    const savedPicker = document.querySelector("#savedThemePicker");
+    if (savedPicker) savedPicker.innerHTML = renderSavedThemePicker();
     bindThemePickerEvents();
+    bindSavedThemePickerEvents();
+    bindCustomColorEvents();
+    bindThemeSaveEvents();
     applyPreviewTheme();
+  }
+
+  function refreshSavedThemePicker() {
+    const savedPicker = document.querySelector("#savedThemePicker");
+    if (savedPicker) savedPicker.innerHTML = renderSavedThemePicker();
+    bindSavedThemePickerEvents();
+    const saveActions = document.querySelector(".theme-save-actions");
+    if (saveActions) {
+      saveActions.innerHTML = `
+        <button class="secondary" id="saveThemeBtn">💾 收藏此主题</button>
+        ${editorState.savedThemeId ? `<button class="secondary danger" id="deleteSavedThemeBtn">🗑️ 删除收藏</button>` : ''}
+      `;
+      bindThemeSaveEvents();
+    }
+  }
+
+  function handleSaveTheme() {
+    const name = prompt("请输入主题名称：", "我的主题");
+    if (!name || !name.trim()) return;
+    const themeData = {
+      name: name.trim(),
+      paper: editorState.theme.paper,
+      ink: editorState.theme.ink,
+      border: editorState.theme.border,
+      table: editorState.theme.table,
+      customColors: { ...editorState.customColors }
+    };
+    const saved = AppData.addCustomTheme(themeData);
+    editorState.savedThemeId = saved.id;
+    refreshSavedThemePicker();
+  }
+
+  function handleDeleteSavedTheme() {
+    if (!editorState.savedThemeId) return;
+    if (!confirm("确定要删除这个已收藏的主题吗？")) return;
+    AppData.deleteCustomTheme(editorState.savedThemeId);
+    editorState.savedThemeId = null;
+    refreshSavedThemePicker();
+  }
+
+  function applySavedTheme(themeId) {
+    const saved = AppData.getCustomThemeById(themeId);
+    if (!saved) return;
+    editorState.theme.paper = saved.paper;
+    editorState.theme.ink = saved.ink;
+    editorState.theme.border = saved.border;
+    editorState.theme.table = saved.table;
+    editorState.customColors = saved.customColors
+      ? { ...saved.customColors }
+      : { paperColor: null, inkColor: null, tableColor: null };
+    editorState.savedThemeId = themeId;
+    render();
   }
 
   function refreshScatterPicker() {
@@ -517,6 +659,9 @@ const AppEditor = (() => {
 
     bindTextGridEvents();
     bindThemePickerEvents();
+    bindSavedThemePickerEvents();
+    bindCustomColorEvents();
+    bindThemeSaveEvents();
     bindScatterEvents();
     bindOrientationEvents();
     bindToolPickerEvents();
@@ -551,9 +696,85 @@ const AppEditor = (() => {
         const category = btn.dataset.category;
         const key = btn.dataset.key;
         editorState.theme[category] = key;
+        if (category === "paper" && editorState.customColors.paperColor) {
+          const colorInput = document.querySelector("#customPaperColor");
+          if (colorInput) colorInput.value = AppData.paperColors[key] || "#f7ebcd";
+        }
+        if (category === "ink" && editorState.customColors.inkColor) {
+          const colorInput = document.querySelector("#customInkColor");
+          if (colorInput) colorInput.value = AppData.inkColors[key] || "#2b251d";
+        }
+        if (category === "table" && editorState.customColors.tableColor) {
+          const colorInput = document.querySelector("#customTableColor");
+          if (colorInput) colorInput.value = AppData.tableColors[key] || "#d9caa8";
+        }
+        editorState.savedThemeId = null;
         refreshThemePicker();
       };
     });
+  }
+
+  function bindSavedThemePickerEvents() {
+    document.querySelectorAll(".saved-theme-card").forEach(card => {
+      card.onclick = () => {
+        const themeId = card.dataset.themeId;
+        applySavedTheme(themeId);
+      };
+    });
+  }
+
+  function bindCustomColorEvents() {
+    const categories = ["Paper", "Ink", "Table"];
+    categories.forEach(cat => {
+      const toggle = document.querySelector("#custom" + cat + "ColorToggle");
+      const picker = document.querySelector("#custom" + cat + "ColorPicker");
+      const colorInput = document.querySelector("#custom" + cat + "Color");
+      const colorValue = document.querySelector("#custom" + cat + "ColorValue");
+      const catKey = cat.charAt(0).toLowerCase() + cat.slice(1);
+
+      if (toggle) {
+        toggle.onchange = () => {
+          if (toggle.checked) {
+            editorState.customColors[catKey + "Color"] = colorInput.value;
+            if (picker) picker.classList.add("active");
+            if (colorValue) colorValue.textContent = colorInput.value;
+          } else {
+            editorState.customColors[catKey + "Color"] = null;
+            if (picker) picker.classList.remove("active");
+            if (colorValue) colorValue.textContent = "";
+          }
+          editorState.savedThemeId = null;
+          applyPreviewTheme();
+          refreshSavedThemePicker();
+        };
+      }
+
+      if (colorInput) {
+        colorInput.addEventListener("input", () => {
+          if (toggle && toggle.checked) {
+            editorState.customColors[catKey + "Color"] = colorInput.value;
+            if (colorValue) colorValue.textContent = colorInput.value;
+            editorState.savedThemeId = null;
+            applyPreviewTheme();
+          }
+        });
+        colorInput.addEventListener("change", () => {
+          if (toggle && toggle.checked) {
+            editorState.customColors[catKey + "Color"] = colorInput.value;
+            if (colorValue) colorValue.textContent = colorInput.value;
+            editorState.savedThemeId = null;
+            applyPreviewTheme();
+          }
+        });
+      }
+    });
+  }
+
+  function bindThemeSaveEvents() {
+    const saveBtn = document.querySelector("#saveThemeBtn");
+    if (saveBtn) saveBtn.onclick = handleSaveTheme;
+    const deleteBtn = document.querySelector("#deleteSavedThemeBtn");
+    if (deleteBtn) deleteBtn.onclick = handleDeleteSavedTheme;
   }
 
   function bindScatterEvents() {

@@ -48,6 +48,80 @@ const AppData = (() => {
     dai: "#4a3a5a"
   };
 
+  const tableColors = {
+    base: "#d9caa8",
+    wood: "#c9b896",
+    stone: "#b8b5ac",
+    silk: "#e0d4c0",
+    bamboo: "#d0c8a8",
+    lacquer: "#3a3025"
+  };
+
+  const CUSTOM_THEMES_KEY = "zfl27CustomThemes";
+
+  function getCustomThemes() {
+    try {
+      const saved = localStorage.getItem(CUSTOM_THEMES_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (Array.isArray(data)) return data;
+      }
+    } catch (e) {}
+    return [];
+  }
+
+  function saveCustomThemes(themes) {
+    localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(themes));
+  }
+
+  function addCustomTheme(theme) {
+    const customs = getCustomThemes();
+    theme.id = "custom-theme-" + Date.now();
+    theme.custom = true;
+    customs.push(theme);
+    saveCustomThemes(customs);
+    return theme;
+  }
+
+  function updateCustomTheme(id, theme) {
+    const customs = getCustomThemes();
+    const idx = customs.findIndex(t => t.id === id);
+    if (idx >= 0) {
+      theme.id = id;
+      theme.custom = true;
+      customs[idx] = theme;
+      saveCustomThemes(customs);
+      return true;
+    }
+    return false;
+  }
+
+  function deleteCustomTheme(id) {
+    const customs = getCustomThemes();
+    const filtered = customs.filter(t => t.id !== id);
+    saveCustomThemes(filtered);
+  }
+
+  function getCustomThemeById(id) {
+    return getCustomThemes().find(t => t.id === id) || null;
+  }
+
+  function isBuiltinThemeKey(category, key) {
+    return !!(themes[category] && themes[category][key]);
+  }
+
+  function resolveThemeColor(themeObj, category) {
+    if (!themeObj) return null;
+    if (themeObj.customColors && themeObj.customColors[category + "Color"]) {
+      return themeObj.customColors[category + "Color"];
+    }
+    const key = themeObj[category];
+    if (category === "paper") return paperColors[key] || null;
+    if (category === "ink") return inkColors[key] || null;
+    if (category === "table") return tableColors[key] || null;
+    return null;
+  }
+
   const builtinPuzzles = [
     {
       id: "builtin-1",
@@ -140,8 +214,9 @@ const AppData = (() => {
 
   function getThemePreviewColor(theme) {
     return {
-      paper: paperColors[theme.paper] || "#f7ebcd",
-      ink: inkColors[theme.ink] || "#2b251d"
+      paper: resolveThemeColor(theme, "paper") || "#f7ebcd",
+      ink: resolveThemeColor(theme, "ink") || "#2b251d",
+      table: resolveThemeColor(theme, "table") || "#d9caa8"
     };
   }
 
@@ -224,6 +299,7 @@ const AppData = (() => {
     scatterRules,
     paperColors,
     inkColors,
+    tableColors,
     getThemePreviewColor,
     getAllPuzzles,
     getBuiltinPuzzles,
@@ -234,6 +310,13 @@ const AppData = (() => {
     getPuzzleIndex,
     getPuzzleById,
     getPuzzleByIndex,
-    getBuiltinCount
+    getBuiltinCount,
+    getCustomThemes,
+    addCustomTheme,
+    updateCustomTheme,
+    deleteCustomTheme,
+    getCustomThemeById,
+    isBuiltinThemeKey,
+    resolveThemeColor
   };
 })();

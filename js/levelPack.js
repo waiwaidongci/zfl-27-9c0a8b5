@@ -48,7 +48,17 @@ const LevelPack = (() => {
         const inkn = (AppData.themes.ink[value.ink] || {}).name || value.ink;
         const bn = (AppData.themes.border[value.border] || {}).name || value.border;
         const tn = (AppData.themes.table[value.table] || {}).name || value.table;
-        return pn + " + " + inkn + "（边框：" + bn + "，台面：" + tn + "）";
+        let result = pn + " + " + inkn + "（边框：" + bn + "，台面：" + tn + "）";
+        if (value.customColors) {
+          const customParts = [];
+          if (value.customColors.paperColor) customParts.push("纸色" + value.customColors.paperColor);
+          if (value.customColors.inkColor) customParts.push("墨色" + value.customColors.inkColor);
+          if (value.customColors.tableColor) customParts.push("台面" + value.customColors.tableColor);
+          if (customParts.length > 0) {
+            result += " [自定义：" + customParts.join("、") + "]";
+          }
+        }
+        return result;
       case "timeLimit":
         return value + " 秒";
       case "scatterRule":
@@ -271,7 +281,8 @@ const LevelPack = (() => {
       customPuzzles: localStorage.getItem(CUSTOM_KEY) || null,
       progress: localStorage.getItem("zfl27Progress") || null,
       library: localStorage.getItem("zfl27Library") || null,
-      notes: localStorage.getItem("zfl27LibraryNotes") || null
+      notes: localStorage.getItem("zfl27LibraryNotes") || null,
+      customThemes: localStorage.getItem("zfl27CustomThemes") || null
     };
     try {
       localStorage.setItem(backupKey, JSON.stringify(backup));
@@ -321,6 +332,11 @@ const LevelPack = (() => {
         localStorage.setItem("zfl27LibraryNotes", backup.notes);
       } else {
         localStorage.removeItem("zfl27LibraryNotes");
+      }
+      if (backup.customThemes !== null) {
+        localStorage.setItem("zfl27CustomThemes", backup.customThemes);
+      } else {
+        localStorage.removeItem("zfl27CustomThemes");
       }
       return true;
     } catch (e) {
@@ -384,19 +400,29 @@ const LevelPack = (() => {
       }
       if (!errors.some(e => e.includes("theme 缺少必填字段: paper"))) {
         if (puzzle.theme.paper !== undefined && !getAvailablePapers().includes(puzzle.theme.paper)) {
-          errors.push("未知的纸张类型: " + puzzle.theme.paper);
+          warnings.push("未知的纸张类型: " + puzzle.theme.paper + "，将使用默认值 xuanzhi 进行降级预览");
         }
       }
       if (!errors.some(e => e.includes("theme 缺少必填字段: ink"))) {
         if (puzzle.theme.ink !== undefined && !getAvailableInks().includes(puzzle.theme.ink)) {
-          errors.push("未知的墨色: " + puzzle.theme.ink);
+          warnings.push("未知的墨色: " + puzzle.theme.ink + "，将使用默认值 mohei 进行降级预览");
         }
       }
       if (puzzle.theme.border !== undefined && !getAvailableBorders().includes(puzzle.theme.border)) {
-        warnings.push("未知的边框样式: " + puzzle.theme.border + "，将使用默认值");
+        warnings.push("未知的边框样式: " + puzzle.theme.border + "，将使用默认值 none 进行降级预览");
       }
       if (puzzle.theme.table !== undefined && !getAvailableTables().includes(puzzle.theme.table)) {
-        warnings.push("未知的台面类型: " + puzzle.theme.table + "，将使用默认值");
+        warnings.push("未知的台面类型: " + puzzle.theme.table + "，将使用默认值 wood 进行降级预览");
+      }
+      if (puzzle.customColors && typeof puzzle.customColors === "object") {
+        const colorFields = ["paperColor", "inkColor", "tableColor"];
+        colorFields.forEach(cf => {
+          if (puzzle.customColors[cf] !== undefined && puzzle.customColors[cf] !== null) {
+            if (typeof puzzle.customColors[cf] !== "string" || !/^#[0-9a-fA-F]{6}$/.test(puzzle.customColors[cf])) {
+              warnings.push("自定义颜色 " + cf + " 格式无效: " + puzzle.customColors[cf] + "，将忽略此自定义颜色");
+            }
+          }
+        });
       }
     }
 
@@ -582,6 +608,21 @@ const LevelPack = (() => {
         border: getAvailableBorders().includes(raw.theme.border) ? raw.theme.border : DEFAULT_THEME.border,
         table: getAvailableTables().includes(raw.theme.table) ? raw.theme.table : DEFAULT_THEME.table
       };
+      if (raw.customColors && typeof raw.customColors === "object") {
+        const validCustomColors = {};
+        const colorFields = ["paperColor", "inkColor", "tableColor"];
+        colorFields.forEach(cf => {
+          if (typeof raw.customColors[cf] === "string" && /^#[0-9a-fA-F]{6}$/.test(raw.customColors[cf])) {
+            validCustomColors[cf] = raw.customColors[cf];
+          }
+        });
+        if (Object.keys(validCustomColors).length > 0) {
+          normalized.customColors = validCustomColors;
+        }
+      }
+      if (typeof raw.savedThemeId === "string" && raw.savedThemeId) {
+        normalized.savedThemeId = raw.savedThemeId;
+      }
     } else {
       normalized.theme = { ...DEFAULT_THEME };
     }
@@ -681,8 +722,10 @@ const LevelPack = (() => {
         return {};
       }
     })();
+    const customThemes = AppData.getCustomThemes();
 
     const packLevels = [];
+    const usedThemeIds = new Set();
 
     levelIndices.forEach(idx => {
       const puzzle = allPuzzles[idx];
@@ -707,6 +750,14 @@ const LevelPack = (() => {
           availableTools: [...puzzle.availableTools]
         }
       };
+
+      if (puzzle.customColors) {
+        levelEntry.puzzle.customColors = { ...puzzle.customColors };
+      }
+      if (puzzle.savedThemeId) {
+        levelEntry.puzzle.savedThemeId = puzzle.savedThemeId;
+        usedThemeIds.add(puzzle.savedThemeId);
+      }
 
       if (progress[idx]) {
         levelEntry.progress = { ...progress[idx] };
@@ -736,7 +787,8 @@ const LevelPack = (() => {
         name: "关卡包",
         description: ""
       },
-      levels: packLevels
+      levels: packLevels,
+      customThemes: customThemes.filter(t => usedThemeIds.has(t.id))
     };
   }
 
@@ -978,6 +1030,45 @@ const LevelPack = (() => {
     try {
       const allPuzzlesBefore = AppData.getAllPuzzles();
       const allNamesBefore = new Set(allPuzzlesBefore.map(p => p.name));
+
+      let importedThemes = 0;
+      if (packData.customThemes && Array.isArray(packData.customThemes)) {
+        const existingCustomThemes = AppData.getCustomThemes();
+        const existingIds = new Set(existingCustomThemes.map(t => t.id));
+        const existingNames = new Set(existingCustomThemes.map(t => t.name));
+        packData.customThemes.forEach(theme => {
+          if (theme && typeof theme === "object" && theme.name && theme.paper && theme.ink) {
+            let targetId = theme.id;
+            if (existingIds.has(targetId)) {
+              const cleanTheme = { ...theme };
+              delete cleanTheme.id;
+              delete cleanTheme.custom;
+              AppData.updateCustomTheme(targetId, cleanTheme);
+            } else {
+              let finalName = theme.name;
+              let counter = 1;
+              while (existingNames.has(finalName)) {
+                counter++;
+                finalName = theme.name + " (导入" + counter + ")";
+              }
+              const newTheme = {
+                name: finalName,
+                paper: theme.paper,
+                ink: theme.ink,
+                border: theme.border,
+                table: theme.table,
+                customColors: theme.customColors ? { ...theme.customColors } : undefined
+              };
+              const saved = AppData.addCustomTheme(newTheme);
+              targetId = saved.id;
+            }
+            importedThemes++;
+          }
+        });
+      }
+      if (importedThemes > 0) {
+        report.warnings.push("已导入 " + importedThemes + " 个自定义主题");
+      }
 
       for (let i = 0; i < packData.levels.length; i++) {
         if (onProgress) onProgress(i, packData.levels.length);
