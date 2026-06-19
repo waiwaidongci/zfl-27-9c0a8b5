@@ -26,6 +26,220 @@ const LevelPack = (() => {
     table: "wood"
   };
 
+  const FIELD_LABELS = {
+    size: "尺寸",
+    text: "文字片段",
+    theme: "主题",
+    timeLimit: "限时",
+    scatterRule: "散落规则",
+    orientation: "方向设置",
+    tools: "工具配置",
+    progress: "进度",
+    colophon: "题跋"
+  };
+
+  function formatValue(field, value) {
+    if (value == null) return "无";
+    switch (field) {
+      case "size":
+        return value.cols + "×" + value.rows;
+      case "theme":
+        const pn = (AppData.themes.paper[value.paper] || {}).name || value.paper;
+        const inkn = (AppData.themes.ink[value.ink] || {}).name || value.ink;
+        const bn = (AppData.themes.border[value.border] || {}).name || value.border;
+        const tn = (AppData.themes.table[value.table] || {}).name || value.table;
+        return pn + " + " + inkn + "（边框：" + bn + "，台面：" + tn + "）";
+      case "timeLimit":
+        return value + " 秒";
+      case "scatterRule":
+        return (AppData.scatterRules[value] || {}).name || value;
+      case "orientation":
+        const parts = [];
+        if (value.enableRotation) parts.push("支持旋转");
+        if (value.enableFlip) parts.push("支持翻转");
+        if (value.initialRotationScrambled) parts.push("初始旋转打乱");
+        if (value.initialFlipScrambled) parts.push("初始翻面打乱");
+        return parts.length > 0 ? parts.join("，") : "基础模式";
+      case "tools":
+        const toolNames = {
+          "zoom": "缩放",
+          "edgeAlign": "边缘对齐",
+          "rotateCw": "顺时针旋转",
+          "rotateCcw": "逆时针旋转",
+          "flip": "翻转"
+        };
+        return Array.isArray(value) ? value.map(t => toolNames[t] || t).join("、") : "无";
+      case "progress":
+        const progParts = [];
+        progParts.push(value.completed ? "已完成" : "未完成");
+        progParts.push("最佳 " + (value.bestScore || 0) + " 分");
+        if (value.bestTime != null) progParts.push("最快 " + value.bestTime + " 秒");
+        if (value.hintUsed) progParts.push("使用过提示");
+        progParts.push(value.unlocked ? "已解锁" : "未解锁");
+        return progParts.join("，");
+      case "colophon":
+        return value ? value : "无";
+      case "text":
+        return Array.isArray(value) ? value.join("、") : String(value);
+      default:
+        return String(value);
+    }
+  }
+
+  function calculateFieldDifferences(existingPuzzle, existingProgress, existingColophon, newLevel) {
+    const differences = [];
+    const newPuzzle = normalizePuzzle(newLevel.puzzle);
+    const newProgress = newLevel.progress || {};
+    const newColophon = newLevel.colophon || (newProgress && newProgress.colophon) || "";
+
+    const sizeDiff = existingPuzzle.cols !== newPuzzle.cols || existingPuzzle.rows !== newPuzzle.rows;
+    if (sizeDiff) {
+      differences.push({
+        field: "size",
+        label: FIELD_LABELS.size,
+        oldValue: { cols: existingPuzzle.cols, rows: existingPuzzle.rows },
+        newValue: { cols: newPuzzle.cols, rows: newPuzzle.rows },
+        oldDisplay: formatValue("size", { cols: existingPuzzle.cols, rows: existingPuzzle.rows }),
+        newDisplay: formatValue("size", { cols: newPuzzle.cols, rows: newPuzzle.rows })
+      });
+    }
+
+    const textDiff = JSON.stringify(existingPuzzle.text) !== JSON.stringify(newPuzzle.text);
+    if (textDiff) {
+      differences.push({
+        field: "text",
+        label: FIELD_LABELS.text,
+        oldValue: existingPuzzle.text,
+        newValue: newPuzzle.text,
+        oldDisplay: formatValue("text", existingPuzzle.text),
+        newDisplay: formatValue("text", newPuzzle.text)
+      });
+    }
+
+    const themeDiff = existingPuzzle.theme.paper !== newPuzzle.theme.paper ||
+                      existingPuzzle.theme.ink !== newPuzzle.theme.ink ||
+                      existingPuzzle.theme.border !== newPuzzle.theme.border ||
+                      existingPuzzle.theme.table !== newPuzzle.theme.table;
+    if (themeDiff) {
+      differences.push({
+        field: "theme",
+        label: FIELD_LABELS.theme,
+        oldValue: existingPuzzle.theme,
+        newValue: newPuzzle.theme,
+        oldDisplay: formatValue("theme", existingPuzzle.theme),
+        newDisplay: formatValue("theme", newPuzzle.theme)
+      });
+    }
+
+    if (existingPuzzle.timeLimit !== newPuzzle.timeLimit) {
+      differences.push({
+        field: "timeLimit",
+        label: FIELD_LABELS.timeLimit,
+        oldValue: existingPuzzle.timeLimit,
+        newValue: newPuzzle.timeLimit,
+        oldDisplay: formatValue("timeLimit", existingPuzzle.timeLimit),
+        newDisplay: formatValue("timeLimit", newPuzzle.timeLimit)
+      });
+    }
+
+    if (existingPuzzle.scatterRule !== newPuzzle.scatterRule) {
+      differences.push({
+        field: "scatterRule",
+        label: FIELD_LABELS.scatterRule,
+        oldValue: existingPuzzle.scatterRule,
+        newValue: newPuzzle.scatterRule,
+        oldDisplay: formatValue("scatterRule", existingPuzzle.scatterRule),
+        newDisplay: formatValue("scatterRule", newPuzzle.scatterRule)
+      });
+    }
+
+    const orientDiff = existingPuzzle.enableRotation !== newPuzzle.enableRotation ||
+                       existingPuzzle.enableFlip !== newPuzzle.enableFlip ||
+                       existingPuzzle.initialRotationScrambled !== newPuzzle.initialRotationScrambled ||
+                       existingPuzzle.initialFlipScrambled !== newPuzzle.initialFlipScrambled;
+    if (orientDiff) {
+      differences.push({
+        field: "orientation",
+        label: FIELD_LABELS.orientation,
+        oldValue: {
+          enableRotation: existingPuzzle.enableRotation,
+          enableFlip: existingPuzzle.enableFlip,
+          initialRotationScrambled: existingPuzzle.initialRotationScrambled,
+          initialFlipScrambled: existingPuzzle.initialFlipScrambled
+        },
+        newValue: {
+          enableRotation: newPuzzle.enableRotation,
+          enableFlip: newPuzzle.enableFlip,
+          initialRotationScrambled: newPuzzle.initialRotationScrambled,
+          initialFlipScrambled: newPuzzle.initialFlipScrambled
+        },
+        oldDisplay: formatValue("orientation", {
+          enableRotation: existingPuzzle.enableRotation,
+          enableFlip: existingPuzzle.enableFlip,
+          initialRotationScrambled: existingPuzzle.initialRotationScrambled,
+          initialFlipScrambled: existingPuzzle.initialFlipScrambled
+        }),
+        newDisplay: formatValue("orientation", {
+          enableRotation: newPuzzle.enableRotation,
+          enableFlip: newPuzzle.enableFlip,
+          initialRotationScrambled: newPuzzle.initialRotationScrambled,
+          initialFlipScrambled: newPuzzle.initialFlipScrambled
+        })
+      });
+    }
+
+    const toolsDiff = JSON.stringify(existingPuzzle.availableTools.sort()) !== JSON.stringify(newPuzzle.availableTools.sort());
+    if (toolsDiff) {
+      differences.push({
+        field: "tools",
+        label: FIELD_LABELS.tools,
+        oldValue: existingPuzzle.availableTools,
+        newValue: newPuzzle.availableTools,
+        oldDisplay: formatValue("tools", existingPuzzle.availableTools),
+        newDisplay: formatValue("tools", newPuzzle.availableTools)
+      });
+    }
+
+    const oldProg = existingProgress || { completed: false, bestScore: 0, bestTime: null, hintUsed: false, unlocked: false };
+    const newProg = {
+      completed: newProgress.completed === true,
+      bestScore: newProgress.bestScore || 0,
+      bestTime: newProgress.bestTime != null ? newProgress.bestTime : null,
+      hintUsed: newProgress.hintUsed === true,
+      unlocked: (newProgress.unlocked !== false)
+    };
+    const progDiff = oldProg.completed !== newProg.completed ||
+                     oldProg.bestScore !== newProg.bestScore ||
+                     oldProg.bestTime !== newProg.bestTime ||
+                     oldProg.hintUsed !== newProg.hintUsed ||
+                     oldProg.unlocked !== newProg.unlocked;
+    if (progDiff) {
+      differences.push({
+        field: "progress",
+        label: FIELD_LABELS.progress,
+        oldValue: oldProg,
+        newValue: newProg,
+        oldDisplay: formatValue("progress", oldProg),
+        newDisplay: formatValue("progress", newProg)
+      });
+    }
+
+    const oldCol = existingColophon || "";
+    const newCol = newColophon || "";
+    if (oldCol !== newCol) {
+      differences.push({
+        field: "colophon",
+        label: FIELD_LABELS.colophon,
+        oldValue: oldCol,
+        newValue: newCol,
+        oldDisplay: formatValue("colophon", oldCol),
+        newDisplay: formatValue("colophon", newCol)
+      });
+    }
+
+    return differences;
+  }
+
   function getAppVersion() {
     return "1.0.0";
   }
@@ -600,18 +814,32 @@ const LevelPack = (() => {
       levels: []
     };
 
+    const allProgress = AppProgress.getProgress();
+
     packData.levels.forEach((level, idx) => {
       const puzzle = normalizePuzzle(level.puzzle);
       const existingAll = AppData.getAllPuzzles();
       const conflicts = [];
 
-      existingAll.forEach(ep => {
+      existingAll.forEach((ep, epIdx) => {
         if (ep.name === puzzle.name) {
+          const existingProgress = allProgress[epIdx] || null;
+          const existingColophon = existingProgress ? (existingProgress.colophon || "") : "";
+          const fieldDifferences = calculateFieldDifferences(ep, existingProgress, existingColophon, level);
+
           conflicts.push({
             id: ep.id,
             name: ep.name,
             custom: ep.custom,
-            isBuiltin: !ep.custom
+            isBuiltin: !ep.custom,
+            cols: ep.cols,
+            rows: ep.rows,
+            theme: ep.theme,
+            previewColors: AppData.getThemePreviewColor(ep.theme),
+            timeLimit: ep.timeLimit,
+            textSample: ep.text.slice(0, Math.min(4, ep.text.length)),
+            fieldDifferences: fieldDifferences,
+            hasFieldDifferences: fieldDifferences.length > 0
           });
         }
       });
@@ -913,6 +1141,7 @@ const LevelPack = (() => {
     buildPreview,
     resolveConflictAction,
     executeImport,
-    preflightValidate
+    preflightValidate,
+    calculateFieldDifferences
   };
 })();

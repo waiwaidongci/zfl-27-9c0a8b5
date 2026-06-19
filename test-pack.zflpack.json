@@ -1,0 +1,65 @@
+{
+  "format": "zfl27-level-pack",
+  "version": 1,
+  "appVersion": "1.0.0",
+  "exportedAt": 1718764800000,
+  "meta": {
+    "name": "测试关卡包-字段差异",
+    "description": "用于测试字段级差异确认功能的测试包"
+  },
+  "levels": [
+    {
+      "puzzle": {
+        "name": "第1页",
+        "cols": 4,
+        "rows": 3,
+        "text": ["春风","夏雨","秋月","冬雪","梅香","兰韵","竹节","菊芳","松涛","柳烟","荷露","桂魄"],
+        "theme": {
+          "paper": "caizhi",
+          "ink": "zhuhong",
+          "border": "torn",
+          "table": "stone"
+        },
+        "timeLimit": 200,
+        "hintPenalty": 100,
+        "scatterRule": "clustered",
+        "enableRotation": true,
+        "enableFlip": true,
+        "initialRotationScrambled": true,
+        "initialFlipScrambled": true,
+        "availableTools": ["zoom", "edgeAlign", "rotateCw", "rotateCcw", "flip"]
+      },
+      "progress": {
+        "completed": true,
+        "bestScore": 850,
+        "bestTime": 95,
+        "hintUsed": false,
+        "unlocked": true,
+        "colophon": "测试题跋：这是导入的第1页题跋内容"
+      },
+      "colophon": "测试题跋：这是导入的第1页题跋内容"
+    },
+    {
+      "puzzle": {
+        "name": "自定义测试关",
+        "cols": 3,
+        "rows": 2,
+        "text": ["测试1","测试2","测试3","测试4","测试5","测试6"],
+        "theme": {
+          "paper": "xuanzhi",
+          "ink": "mohei",
+          "border": "none",
+          "table": "wood"
+        },
+        "timeLimit": 120,
+        "hintPenalty": 80,
+        "scatterRule": "random",
+        "enableRotation": false,
+        "enableFlip": false,
+        "initialRotationScrambled": false,
+        "initialFlipScrambled": false,
+        "availableTools": ["zoom", "edgeAlign"]
+      }
+    }
+  ]
+}

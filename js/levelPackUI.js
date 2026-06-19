@@ -332,6 +332,10 @@ const LevelPackUI = (() => {
         const action = btn.dataset.bulkConflict;
         preview.levels.forEach((level, idx) => {
           if (level.hasConflict) {
+            const isBuiltin = level.conflicts.some(c => c.isBuiltin);
+            if (action === "overwrite" && isBuiltin) {
+              return;
+            }
             const existingPuzzle = level.conflicts[0];
             const newPuzzle = { name: level.puzzleName };
             const allNames = new Set(AppData.getAllPuzzles().map(p => p.name));
@@ -348,10 +352,16 @@ const LevelPackUI = (() => {
       sel.onchange = () => {
         const idx = Number(sel.dataset.index);
         const level = preview.levels[idx];
+        const isBuiltin = level.conflicts.some(c => c.isBuiltin);
         const existingPuzzle = level.conflicts[0];
         const newPuzzle = { name: level.puzzleName };
         const allNames = new Set(AppData.getAllPuzzles().map(p => p.name));
-        const action = sel.value;
+        let action = sel.value;
+        if (action === "overwrite" && isBuiltin) {
+          showToast("内置关卡不能覆盖，已自动改为「另存副本」", "warn");
+          action = "copy";
+          sel.value = "copy";
+        }
         conflictResolutions[idx] = LevelPack.resolveConflictAction(
           existingPuzzle, newPuzzle, action, allNames
         );
@@ -385,11 +395,36 @@ const LevelPackUI = (() => {
     };
   }
 
+  function renderFieldDiffTable(conflict) {
+    if (!conflict.fieldDifferences || conflict.fieldDifferences.length === 0) {
+      return '<div class="lp-no-diff">所有字段均相同</div>';
+    }
+
+    let html = '<div class="lp-diff-table">';
+    html += '<div class="lp-diff-header">' +
+            '<div class="lp-diff-col">字段</div>' +
+            '<div class="lp-diff-col">现有</div>' +
+            '<div class="lp-diff-col">导入</div>' +
+            '</div>';
+
+    conflict.fieldDifferences.forEach(diff => {
+      html += '<div class="lp-diff-row">' +
+              '<div class="lp-diff-field">' + escapeHtml(diff.label) + '</div>' +
+              '<div class="lp-diff-old">' + escapeHtml(diff.oldDisplay) + '</div>' +
+              '<div class="lp-diff-new">' + escapeHtml(diff.newDisplay) + '</div>' +
+              '</div>';
+    });
+
+    html += '</div>';
+    return html;
+  }
+
   function renderPreviewLevelCard(level, idx) {
     const resolution = conflictResolutions[idx];
     let conflictHtml = "";
 
     if (level.hasConflict) {
+      const isBuiltin = level.conflicts.some(c => c.isBuiltin);
       const conflictNames = level.conflicts.map(c =>
         (c.isBuiltin ? "[内置] " : "[自定义] ") + c.name
       ).join("、");
@@ -400,14 +435,64 @@ const LevelPackUI = (() => {
         newNameHint = '<span class="lp-new-name" data-index="' + idx + '">→ ' + escapeHtml(resolution.newName) + '</span>';
       }
 
+      const overwriteDisabled = isBuiltin ? ' disabled title="内置关卡不能覆盖，只能另存或跳过"' : '';
+      const overwriteSelected = selectedAction === "overwrite" && !isBuiltin ? " selected" : "";
+
+      let diffsHtml = "";
+      level.conflicts.forEach((conflict, cIdx) => {
+        const diffCount = conflict.fieldDifferences ? conflict.fieldDifferences.length : 0;
+        diffsHtml += '<div class="lp-conflict-detail" data-conflict-idx="' + cIdx + '">' +
+          '<div class="lp-conflict-detail-header">' +
+          '<span class="lp-conflict-type">' + (conflict.isBuiltin ? "🔒 内置关卡" : "✏️ 自定义关卡") + '</span>' +
+          '<span class="lp-conflict-diff-count">' + (diffCount > 0 ? diffCount + ' 处差异' : '无差异') + '</span>' +
+          '</div>' +
+          '<div class="lp-conflict-compare">' +
+          '<div class="lp-conflict-side">' +
+          '<div class="lp-side-label">现有</div>' +
+          '<div class="lp-theme-preview">' +
+          '<div class="theme-dot" style="background:' + conflict.previewColors.paper + ';border-color:' + conflict.previewColors.ink + '"></div>' +
+          '<div class="theme-dot" style="background:' + conflict.previewColors.ink + '"></div>' +
+          '<span class="lp-theme-preview-text">' +
+          escapeHtml((AppData.themes.paper[conflict.theme.paper] || {}).name || conflict.theme.paper) + ' + ' +
+          escapeHtml((AppData.themes.ink[conflict.theme.ink] || {}).name || conflict.theme.ink) +
+          '</span></div>' +
+          '<div class="lp-text-sample">' +
+          conflict.textSample.map(t => '<span class="lp-text-chip">' + escapeHtml(t) + '</span>').join("") +
+          '</div>' +
+          '<div class="lp-side-meta">' + conflict.cols + '×' + conflict.rows + ' · 限时' + conflict.timeLimit + '秒</div>' +
+          '</div>' +
+          '<div class="lp-conflict-arrow">→</div>' +
+          '<div class="lp-conflict-side">' +
+          '<div class="lp-side-label">导入</div>' +
+          '<div class="lp-theme-preview">' +
+          '<div class="theme-dot" style="background:' + level.previewColors.paper + ';border-color:' + level.previewColors.ink + '"></div>' +
+          '<div class="theme-dot" style="background:' + level.previewColors.ink + '"></div>' +
+          '<span class="lp-theme-preview-text">' +
+          escapeHtml((AppData.themes.paper[level.theme.paper] || {}).name || level.theme.paper) + ' + ' +
+          escapeHtml((AppData.themes.ink[level.theme.ink] || {}).name || level.theme.ink) +
+          '</span></div>' +
+          '<div class="lp-text-sample">' +
+          level.textSample.map(t => '<span class="lp-text-chip">' + escapeHtml(t) + '</span>').join("") +
+          '</div>' +
+          '<div class="lp-side-meta">' + level.cols + '×' + level.rows + ' · 限时' + level.timeLimit + '秒</div>' +
+          '</div>' +
+          '</div>' +
+          renderFieldDiffTable(conflict) +
+          '</div>';
+      });
+
       conflictHtml = '<div class="lp-conflict-row">' +
         '<div class="lp-conflict-label">⚠ 同名冲突：' + escapeHtml(conflictNames) + '</div>' +
+        diffsHtml +
+        '<div class="lp-conflict-action-row">' +
         '<select class="lp-conflict-select" data-index="' + idx + '">' +
         '<option value="">请选择处理方式…</option>' +
         '<option value="copy"' + (selectedAction === "copy" ? " selected" : "") + '>另存副本</option>' +
-        '<option value="overwrite"' + (selectedAction === "overwrite" ? " selected" : "") + '>覆盖（仅自定义）</option>' +
+        '<option value="overwrite"' + overwriteSelected + overwriteDisabled + '>覆盖（仅自定义）</option>' +
         '<option value="skip"' + (selectedAction === "skip" ? " selected" : "") + '>跳过此关</option>' +
-        '</select>' + newNameHint + '</div>';
+        '</select>' + newNameHint +
+        (isBuiltin ? '<div class="lp-builtin-hint">🔒 内置关卡只能「另存副本」或「跳过」</div>' : '') +
+        '</div></div>';
     }
 
     const badges = [];
