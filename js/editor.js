@@ -40,7 +40,12 @@ const AppEditor = (() => {
   }
 
   function loadPuzzle(puzzle) {
-    editingId = puzzle.id || null;
+    if (puzzle.id) {
+      const existing = AppData.getCustomPuzzles().find(p => p.id === puzzle.id);
+      editingId = existing ? puzzle.id : null;
+    } else {
+      editingId = null;
+    }
     editorState.name = puzzle.name || "我的残页";
     editorState.cols = puzzle.cols || 3;
     editorState.rows = puzzle.rows || 2;

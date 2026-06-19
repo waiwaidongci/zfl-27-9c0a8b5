@@ -13,11 +13,20 @@ const AppGeneratorUI = (() => {
     difficulty: 3,
     cols: null,
     rows: null,
-    puzzleTheme: null,
+    puzzleThemePreset: "random",
     scatterRule: "random",
     damageRule: "none",
     similarity: null
   };
+
+  const themePresets = [
+    { id: "random", name: "随机", paper: null, ink: null, border: null, table: null, desc: "每次生成随机搭配" },
+    { id: "gumo", name: "古朴墨香", paper: "xuanzhi", ink: "mohei", border: "torn", table: "wood", desc: "宣纸墨黑，古韵悠长" },
+    { id: "zhuhong", name: "朱红典雅", paper: "juanzhi", ink: "zhuhong", border: "frayed", table: "lacquer", desc: "绢纸朱红，典雅华贵" },
+    { id: "qingyun", name: "山水清韵", paper: "baizhi", ink: "zangqing", border: "irregular", table: "stone", desc: "白纸藏青，清新雅致" },
+    { id: "chanyi", name: "禅意悠远", paper: "mazhi", ink: "dai", border: "none", table: "bamboo", desc: "麻纸黛色，禅意深远" },
+    { id: "tanxiang", name: "檀香静心", paper: "caizhi", ink: "tanxiang", border: "chipped", table: "silk", desc: "彩纸檀香，温婉沉静" }
+  ];
 
   function setCallbacks(callbacks) {
     if (callbacks.onStartPreview) onStartPreview = callbacks.onStartPreview;
@@ -188,6 +197,22 @@ const AppGeneratorUI = (() => {
           </div>
 
           <div class="gen-section" style="margin-top:16px">
+            <h2>主题倾向</h2>
+            <p class="gen-section-hint">选择残页的视觉风格</p>
+            <div class="gen-theme-preset-grid">
+              ${themePresets.map(p => `
+                <div class="gen-theme-preset ${state.puzzleThemePreset === p.id ? 'active' : ''}" data-preset="${p.id}">
+                  <div class="gen-theme-preset-swatch" style="background: ${p.paper ? AppData.paperColors[p.paper] : 'linear-gradient(135deg, #f7ebcd, #e8d9bc, #f0e4c8)'}">
+                    <span style="color: ${p.ink ? AppData.inkColors[p.ink] : '#2b251d'}">字</span>
+                  </div>
+                  <div class="gen-theme-preset-name">${escapeHtml(p.name)}</div>
+                  <div class="gen-theme-preset-desc">${escapeHtml(p.desc)}</div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+
+          <div class="gen-section" style="margin-top:16px">
             <h2>残片破损</h2>
             <div class="gen-damage-row">
               ${damageOptions}
@@ -211,10 +236,13 @@ const AppGeneratorUI = (() => {
   }
 
   function renderMiniPreview() {
-    const paperKeys = Object.keys(AppData.themes.paper);
-    const inkKeys = Object.keys(AppData.themes.ink);
-    const paperColor = AppData.paperColors[paperKeys[0]];
-    const inkColor = AppData.inkColors[inkKeys[0]];
+    const preset = themePresets.find(p => p.id === state.puzzleThemePreset);
+    const paperColor = preset && preset.paper
+      ? AppData.paperColors[preset.paper]
+      : AppData.paperColors.xuanzhi;
+    const inkColor = preset && preset.ink
+      ? AppData.inkColors[preset.ink]
+      : AppData.inkColors.mohei;
 
     const cells = [];
     const total = state.cols * state.rows;
@@ -244,6 +272,7 @@ const AppGeneratorUI = (() => {
       <div class="gen-preview-info">
         <div><span>尺寸</span><b>${state.cols}×${state.rows}（${total} 片）</b></div>
         <div><span>词库</span><b>${escapeHtml(getThemeName(state.themeId))}</b></div>
+        <div><span>主题</span><b>${escapeHtml(preset ? preset.name : '随机')}</b></div>
         <div><span>难度</span><b>Lv.${state.difficulty} ${escapeHtml(getDifficultyName(state.difficulty))}</b></div>
         <div><span>散落</span><b>${escapeHtml(AppData.scatterRules[state.scatterRule]?.name || '')}</b></div>
       </div>
@@ -316,6 +345,15 @@ const AppGeneratorUI = (() => {
       };
     });
 
+    document.querySelectorAll(".gen-theme-preset").forEach(opt => {
+      opt.onclick = () => {
+        state.puzzleThemePreset = opt.dataset.preset;
+        refreshMiniPreview();
+        document.querySelectorAll(".gen-theme-preset").forEach(o => o.classList.remove("active"));
+        opt.classList.add("active");
+      };
+    });
+
     document.querySelectorAll(".gen-damage-option").forEach(opt => {
       opt.onclick = () => {
         state.damageRule = opt.dataset.damage;
@@ -346,6 +384,14 @@ const AppGeneratorUI = (() => {
     const scramble = AppLevelAdapter.calculateScrambleLevel(state.difficulty);
     const rng = AppGenerator.createRNG(seed);
 
+    const preset = themePresets.find(p => p.id === state.puzzleThemePreset);
+    const puzzleTheme = (preset && preset.paper) ? {
+      paper: preset.paper,
+      ink: preset.ink,
+      border: preset.border,
+      table: preset.table
+    } : null;
+
     const result = AppGenerator.generatePuzzle({
       seed,
       difficulty: state.difficulty,
@@ -358,7 +404,8 @@ const AppGeneratorUI = (() => {
       enableRotation: scramble.rotation,
       enableFlip: scramble.flip,
       initialRotationScrambled: scramble.scrambleInitialRotation,
-      initialFlipScrambled: scramble.scrambleInitialFlip
+      initialFlipScrambled: scramble.scrambleInitialFlip,
+      puzzleTheme: puzzleTheme
     });
 
     currentConfig = result;
@@ -509,7 +556,10 @@ const AppGeneratorUI = (() => {
     if (!currentPuzzle) return;
     close();
     if (onOpenEditor) {
-      onOpenEditor(currentPuzzle);
+      const puzzleForEditor = LevelPack.normalizePuzzle(currentPuzzle);
+      delete puzzleForEditor.id;
+      delete puzzleForEditor.custom;
+      onOpenEditor(puzzleForEditor);
     }
   }
 
