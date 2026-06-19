@@ -3,6 +3,7 @@ const AppProgress = (() => {
   let progress = [];
   let onLevelClick = null;
   let onDeleteCustom = null;
+  let onEditCustom = null;
 
   function init() {
     progress = loadProgress();
@@ -121,6 +122,10 @@ const AppProgress = (() => {
     onDeleteCustom = handler;
   }
 
+  function setOnEditCustom(handler) {
+    onEditCustom = handler;
+  }
+
   function renderLevels(containerEl, currentIndex) {
     ensureProgressSize();
     const allPuzzles = AppData.getAllPuzzles();
@@ -164,6 +169,16 @@ const AppProgress = (() => {
         const id = btn.dataset.id;
         if (onDeleteCustom) {
           onDeleteCustom(id);
+        }
+      });
+    });
+
+    containerEl.querySelectorAll(".edit-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        if (onEditCustom) {
+          onEditCustom(id);
         }
       });
     });
@@ -211,7 +226,7 @@ const AppProgress = (() => {
     ) : '';
 
     const customTag = puzzle.custom ? '<span class="custom-tag">自定义</span>' : '';
-    const deleteBtn = puzzle.custom ? '<div class="card-actions"><button class="delete-btn" data-id="' + puzzle.id + '">删除</button></div>' : '';
+    const cardActions = puzzle.custom ? '<div class="card-actions"><button class="edit-btn" data-id="' + puzzle.id + '">编辑</button><button class="delete-btn" data-id="' + puzzle.id + '">删除</button></div>' : '';
 
     return '<div class="level-card ' + cardClass + '" data-level="' + index + '">' +
       '<div class="level-header">' +
@@ -220,7 +235,7 @@ const AppProgress = (() => {
       '</div>' +
       statsHtml +
       previewHtml +
-      deleteBtn +
+      cardActions +
     '</div>';
   }
 
@@ -267,6 +282,7 @@ const AppProgress = (() => {
     renderLevels,
     setOnLevelClick,
     setOnDeleteCustom,
+    setOnEditCustom,
     findStartIndex,
     handleCustomDeleted,
     ensureProgressSize,

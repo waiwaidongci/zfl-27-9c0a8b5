@@ -2,6 +2,7 @@ const AppEditor = (() => {
   let onSave = null;
   let onCancel = null;
   let onStartPreview = null;
+  let editingId = null;
 
   let editorState = {
     name: "我的残页",
@@ -27,12 +28,32 @@ const AppEditor = (() => {
     if (callbacks.onStartPreview) onStartPreview = callbacks.onStartPreview;
   }
 
-  function open() {
+  function open(puzzle) {
+    if (puzzle) {
+      loadPuzzle(puzzle);
+    }
     const editorView = document.querySelector(".editor-view");
     const gameView = document.querySelector(".game-view");
     if (editorView) editorView.classList.add("active");
     if (gameView) gameView.classList.add("hidden-view");
     render();
+  }
+
+  function loadPuzzle(puzzle) {
+    editingId = puzzle.id || null;
+    editorState.name = puzzle.name || "我的残页";
+    editorState.cols = puzzle.cols || 3;
+    editorState.rows = puzzle.rows || 2;
+    editorState.text = puzzle.text ? [...puzzle.text] : ["残片1", "残片2", "残片3", "残片4", "残片5", "残片6"];
+    editorState.theme = puzzle.theme ? { ...puzzle.theme } : { paper: "xuanzhi", ink: "mohei", border: "none", table: "wood" };
+    editorState.timeLimit = puzzle.timeLimit || 120;
+    editorState.hintPenalty = puzzle.hintPenalty || 80;
+    editorState.scatterRule = puzzle.scatterRule || "random";
+    editorState.enableRotation = puzzle.enableRotation || false;
+    editorState.enableFlip = puzzle.enableFlip || false;
+    editorState.initialRotationScrambled = puzzle.initialRotationScrambled || false;
+    editorState.initialFlipScrambled = puzzle.initialFlipScrambled || false;
+    editorState.availableTools = puzzle.availableTools ? [...puzzle.availableTools] : ["zoom", "edgeAlign"];
   }
 
   function close() {
@@ -43,6 +64,7 @@ const AppEditor = (() => {
   }
 
   function resetState() {
+    editingId = null;
     editorState = {
       name: "我的残页",
       cols: 3,
@@ -104,7 +126,7 @@ const AppEditor = (() => {
       return;
     }
     const puzzle = buildPuzzle();
-    if (onSave) onSave(puzzle);
+    if (onSave) onSave(puzzle, editingId);
     close();
   }
 
@@ -144,7 +166,7 @@ const AppEditor = (() => {
       <div class="editor-breadcrumb">
         <span class="crumb" id="editorBackBtn">← 返回游戏</span>
         <span class="sep">›</span>
-        <span class="current">残页编辑器</span>
+        <span class="current">${editingId ? "编辑残页" : "残页编辑器"}</span>
       </div>
       <div class="editor-container">
         <div>
@@ -279,7 +301,7 @@ const AppEditor = (() => {
           <div class="editor-actions">
             <button class="secondary" id="editorCancelBtn">取消</button>
             <button class="secondary" id="editorPreviewBtn">试玩</button>
-            <button id="editorSaveBtn">保存并添加</button>
+            <button id="editorSaveBtn">${editingId ? "保存修改" : "保存并添加"}</button>
           </div>
         </div>
       </div>

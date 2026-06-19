@@ -29,6 +29,7 @@ const App = (() => {
       const deleteIndex = AppData.getPuzzleIndex(id);
       const saveKey = "zfl27LevelSave_" + id;
       localStorage.removeItem(saveKey);
+      AppLibrary.deleteEntry(id);
       AppData.deleteCustomPuzzle(id);
       AppProgress.handleCustomDeleted(deleteIndex);
       refreshLevels();
@@ -42,20 +43,63 @@ const App = (() => {
         AppGame.start(startIdx);
       }
     });
+
+    AppProgress.setOnEditCustom((id) => {
+      const puzzle = AppData.getPuzzleById(id);
+      if (!puzzle) return;
+      AppEditor.open(puzzle);
+    });
+
     AppEditor.setCallbacks({
-      onSave: (puzzle) => {
-        const saved = AppData.addCustomPuzzle(puzzle);
-        AppProgress.ensureProgressSize();
-        const allPuzzles = AppData.getAllPuzzles();
-        const idx = allPuzzles.findIndex(p => p.id === saved.id);
-        if (idx >= 0) {
-          AppProgress.updateProgress(idx, { unlocked: true });
+      onSave: (puzzle, editingId) => {
+        if (editingId) {
+          const oldPuzzle = AppData.getPuzzleById(editingId);
+          const dimensionsChanged = oldPuzzle && (
+            oldPuzzle.cols !== puzzle.cols ||
+            oldPuzzle.rows !== puzzle.rows
+          );
+
+          AppData.updateCustomPuzzle(editingId, puzzle);
+
+          if (dimensionsChanged) {
+            const saveKey = "zfl27LevelSave_" + editingId;
+            localStorage.removeItem(saveKey);
+          }
+
+          const libraryEntry = AppLibrary.loadLibrary().find(e => e.puzzleId === editingId);
+          if (libraryEntry) {
+            AppLibrary.addOrUpdateEntry(editingId, {
+              name: puzzle.name,
+              text: puzzle.text,
+              cols: puzzle.cols,
+              rows: puzzle.rows,
+              theme: puzzle.theme
+            });
+          }
+
+          refreshLevels();
+
+          const currentPuzzle = AppData.getPuzzleByIndex(AppGame.getCurrentIndex());
+          if (currentPuzzle && currentPuzzle.id === editingId) {
+            setTimeout(() => {
+              const newIdx = AppData.getPuzzleIndex(editingId);
+              if (newIdx >= 0) AppGame.start(newIdx);
+            }, 50);
+          }
+        } else {
+          const saved = AppData.addCustomPuzzle(puzzle);
+          AppProgress.ensureProgressSize();
+          const allPuzzles = AppData.getAllPuzzles();
+          const idx = allPuzzles.findIndex(p => p.id === saved.id);
+          if (idx >= 0) {
+            AppProgress.updateProgress(idx, { unlocked: true });
+          }
+          refreshLevels();
+          setTimeout(() => {
+            const newIdx = AppData.getAllPuzzles().findIndex(p => p.id === saved.id);
+            if (newIdx >= 0) AppGame.start(newIdx);
+          }, 50);
         }
-        refreshLevels();
-        setTimeout(() => {
-          const newIdx = AppData.getAllPuzzles().findIndex(p => p.id === saved.id);
-          if (newIdx >= 0) AppGame.start(newIdx);
-        }, 50);
       },
       onCancel: () => {
         refreshLevels();
