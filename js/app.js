@@ -118,6 +118,9 @@ const App = (() => {
       onTempExit: () => {
         AppEditor.open();
       },
+      onTempDailyExit: () => {
+        AppDailyChallenge.openCalendar();
+      },
       onDailyExit: () => {
         const startIdx = AppProgress.findStartIndex();
         AppGame.start(startIdx);
@@ -160,6 +163,14 @@ const App = (() => {
       }
     });
     AppTutorial.bindUI();
+    AppDailyChallenge.setCallbacks({
+      onStartToday: (puzzle, restoreState) => {
+        AppGame.startDaily(puzzle, restoreState);
+      },
+      onStartTempPlay: (puzzle) => {
+        AppGame.startTempDaily(puzzle);
+      }
+    });
     const editorEntryBtn = document.querySelector("#editorEntryBtn");
     if (editorEntryBtn) {
       editorEntryBtn.onclick = () => {
@@ -179,9 +190,7 @@ const App = (() => {
     if (dailyChallengeBtn) {
       dailyChallengeBtn.onclick = () => {
         if (AppTutorial.isActive()) return;
-        const puzzle = AppDailyChallenge.getTodayPuzzle();
-        const restoreState = AppDailyChallenge.getSessionGameState();
-        AppGame.startDaily(puzzle, restoreState);
+        AppDailyChallenge.openCalendar();
       };
     }
     const libraryBtn = document.querySelector("#libraryBtn");

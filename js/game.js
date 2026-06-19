@@ -42,10 +42,12 @@ const AppGame = (() => {
   let onLevelsRefresh = null;
   let onDailyExit = null;
   let onDailyFinish = null;
+  let onTempDailyExit = null;
   let tutorial = null;
   let progress = null;
   let dailyAutosaveTimer = null;
   let levelAutosaveTimer = null;
+  let isTempDailyMode = false;
 
   const LEVEL_SAVE_KEY_PREFIX = "zfl27LevelSave_";
   const TEMP_SAVE_KEY = "zfl27TempSave";
@@ -58,6 +60,7 @@ const AppGame = (() => {
     if (deps.onTempExit) onTempExit = deps.onTempExit;
     if (deps.onDailyExit) onDailyExit = deps.onDailyExit;
     if (deps.onDailyFinish) onDailyFinish = deps.onDailyFinish;
+    if (deps.onTempDailyExit) onTempDailyExit = deps.onTempDailyExit;
   }
 
   function cacheElements() {
@@ -271,6 +274,7 @@ const AppGame = (() => {
 
     currentIndex = -1;
     isTempMode = false;
+    isTempDailyMode = false;
     isDailyMode = true;
     currentPuzzle = { ...puzzle };
     initGameState();
@@ -283,6 +287,35 @@ const AppGame = (() => {
     }
     startTimer();
     startDailyAutosave();
+    updateHud();
+  }
+
+  function startTempDaily(puzzle) {
+    stopLevelAutosave();
+    stopDailyAutosave();
+
+    if (currentPuzzle && !isTempDailyMode && !isDailyMode) {
+      let oldSaveKey = null;
+      if (currentPuzzle._saveKey) {
+        oldSaveKey = currentPuzzle._saveKey;
+      } else if (currentPuzzle.id === "temp") {
+        oldSaveKey = TEMP_SAVE_KEY;
+      } else if (currentPuzzle.id) {
+        oldSaveKey = LEVEL_SAVE_KEY_PREFIX + currentPuzzle.id;
+      }
+      if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+    }
+
+    currentIndex = -1;
+    isTempMode = false;
+    isDailyMode = false;
+    isTempDailyMode = true;
+    currentPuzzle = { ...puzzle };
+    initGameState();
+    if (onLevelsRefresh) onLevelsRefresh();
+    renderPuzzle();
+    startTimer();
+    startLevelAutosave();
     updateHud();
   }
 
@@ -929,7 +962,7 @@ const AppGame = (() => {
           hintUsed
         });
       }
-    } else if (win && progress && !isTempMode) {
+    } else if (!isTempDailyMode && win && progress && !isTempMode) {
       const prev = progress.getProgressAt(currentIndex);
       const newBestScore = Math.max(prev.bestScore, finalScore);
       const newBestTime = (prev.bestTime === null || usedTime < prev.bestTime) ? usedTime : prev.bestTime;
@@ -961,7 +994,7 @@ const AppGame = (() => {
       });
     }
 
-    if (onLevelsRefresh && !isTempMode && !isDailyMode) onLevelsRefresh();
+    if (onLevelsRefresh && !isTempMode && !isDailyMode && !isTempDailyMode) onLevelsRefresh();
     updateHud();
 
     modalTitle.style.display = "none";
@@ -985,6 +1018,13 @@ const AppGame = (() => {
         if (AppDailyChallenge) AppDailyChallenge.recordSessionStart();
         startDaily(currentPuzzle);
       };
+    } else if (isTempDailyMode) {
+      nextBtn.textContent = "返回七日日历";
+      nextBtn.onclick = () => {
+        if (onTempDailyExit) onTempDailyExit();
+      };
+      retryBtn.textContent = "再玩一遍";
+      retryBtn.onclick = () => startTempDaily(currentPuzzle);
     } else if (isTempMode) {
       nextBtn.textContent = "返回编辑器";
       nextBtn.onclick = () => {
@@ -1014,6 +1054,8 @@ const AppGame = (() => {
     if (levelText) {
       if (isDailyMode && puzzle) {
         levelText.innerHTML = puzzle.name + ' <span class="daily-mode-indicator">每日挑战</span>';
+      } else if (isTempDailyMode && puzzle) {
+        levelText.innerHTML = puzzle.name + ' <span class="daily-mode-indicator" style="background:#6a8a5a">临时重玩</span>';
       } else {
         levelText.textContent = puzzle ? puzzle.name : (currentIndex + 1);
       }
@@ -1024,6 +1066,8 @@ const AppGame = (() => {
     if (isDailyMode) {
       const todayRecord = AppDailyChallenge ? AppDailyChallenge.getTodayRecord() : null;
       bestText.textContent = todayRecord && todayRecord.completed ? todayRecord.score : "挑战中";
+    } else if (isTempDailyMode) {
+      bestText.textContent = "临时模式";
     } else if (progress && !isTempMode) {
       const p = progress.getProgressAt(currentIndex);
       bestText.textContent = p ? (p.bestScore || 0) : 0;
@@ -1078,6 +1122,8 @@ const AppGame = (() => {
     if (isDailyMode) {
       if (AppDailyChallenge) AppDailyChallenge.recordSessionStart();
       startDaily(currentPuzzle);
+    } else if (isTempDailyMode) {
+      startTempDaily(currentPuzzle);
     } else if (isTempMode) {
       startTemp(currentPuzzle, { forceNew: true });
     } else {
@@ -1301,6 +1347,7 @@ const AppGame = (() => {
     start,
     startTemp,
     startDaily,
+    startTempDaily,
     pauseTimer,
     resumeTimer,
     getState,

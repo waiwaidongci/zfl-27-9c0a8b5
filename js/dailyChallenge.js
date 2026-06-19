@@ -3,6 +3,13 @@ const AppDailyChallenge = (() => {
   const STORAGE_KEY_SESSION = "zfl27DailySession";
   const MAX_HISTORY_DAYS = 7;
 
+  let onStartToday = null;
+  let onStartTempPlay = null;
+  let calendarModalEl = null;
+  let calendarOverlayEl = null;
+  let detailModalEl = null;
+  let currentDetailDate = null;
+
   const dailyTextPool = [
     ["晨露","暮雪","春山","秋水","寒梅","暖竹","清风","明月"],
     ["诗经","尚书","礼记","周易","春秋","论语","孟子","中庸","大学"],
@@ -414,6 +421,341 @@ const AppDailyChallenge = (() => {
     }
   }
 
+  function setCallbacks(callbacks) {
+    if (callbacks.onStartToday) onStartToday = callbacks.onStartToday;
+    if (callbacks.onStartTempPlay) onStartTempPlay = callbacks.onStartTempPlay;
+  }
+
+  function bindCalendarUI() {
+    calendarOverlayEl = document.getElementById('dailyCalendarOverlay');
+    calendarModalEl = document.getElementById('dailyCalendarModal');
+    detailModalEl = document.getElementById('dailyDetailModal');
+
+    const closeCalendarBtn = document.getElementById('closeCalendarBtn');
+    if (closeCalendarBtn) {
+      closeCalendarBtn.onclick = closeCalendar;
+    }
+    if (calendarOverlayEl) {
+      calendarOverlayEl.addEventListener('click', (e) => {
+        if (e.target === calendarOverlayEl) closeCalendar();
+      });
+    }
+
+    const closeDetailBtn = document.getElementById('closeDetailBtn');
+    if (closeDetailBtn) {
+      closeDetailBtn.onclick = closeDetailModal;
+    }
+  }
+
+  function openCalendar() {
+    if (!calendarModalEl) bindCalendarUI();
+    if (!calendarOverlayEl || !calendarModalEl) return;
+    renderCalendar();
+    calendarOverlayEl.classList.remove('hidden');
+    calendarModalEl.classList.remove('hidden');
+    setCountdownCallbacks({
+      onUpdate: (formatted) => {
+        const el = document.getElementById('calCountdownTime');
+        if (el) el.textContent = formatted;
+      },
+      onEnd: () => {
+        renderCalendar();
+      }
+    });
+    startCountdownTimer();
+  }
+
+  function closeCalendar() {
+    if (calendarOverlayEl) calendarOverlayEl.classList.add('hidden');
+    if (calendarModalEl) calendarModalEl.classList.add('hidden');
+    stopCountdownTimer();
+  }
+
+  function renderCalendar() {
+    if (!calendarModalEl) return;
+    const records = getRecentRecords();
+    const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+
+    let html = `
+      <div class="cal-header">
+        <h2>📅 七日挑战日历</h2>
+        <div class="cal-countdown">
+          <span class="cal-countdown-label">今日挑战剩余</span>
+          <span class="cal-countdown-time" id="calCountdownTime">00:00:00</span>
+        </div>
+      </div>
+      <div class="cal-weekdays">
+    `;
+    weekDays.forEach(d => {
+      html += `<div class="cal-weekday">${d}</div>`;
+    });
+    html += '</div><div class="cal-grid">';
+
+    records.forEach(rec => {
+      const date = new Date(rec.date);
+      const weekday = date.getDay();
+      const dateLabel = rec.isToday ? '今' : date.getDate();
+      const dateFullLabel = rec.isToday ? '今天' : formatDateLabel(rec.date);
+
+      let statusIcon = '';
+      let statusClass = '';
+      if (rec.isToday) {
+        if (rec.completed) {
+          statusIcon = '✓';
+          statusClass = 'cal-day-completed';
+        } else if (rec.hasAttempt) {
+          statusIcon = '⏵';
+          statusClass = 'cal-day-playing';
+        } else {
+          statusIcon = '◯';
+          statusClass = 'cal-day-available';
+        }
+      } else {
+        if (rec.completed) {
+          statusIcon = '✓';
+          statusClass = 'cal-day-completed';
+        } else if (rec.hasAttempt) {
+          statusIcon = '✗';
+          statusClass = 'cal-day-failed';
+        } else {
+          statusIcon = '·';
+          statusClass = 'cal-day-missed';
+        }
+      }
+
+      const scoreBadge = rec.score !== null && rec.score > 0
+        ? `<div class="cal-day-score">${rec.score}</div>`
+        : '';
+      const hintBadge = rec.hintUsed
+        ? `<div class="cal-day-hint" title="使用了提示">💡</div>`
+        : '';
+      const todayBadge = rec.isToday
+        ? `<div class="cal-day-today-badge">今日</div>`
+        : '';
+
+      html += `
+        <div class="cal-day ${statusClass}" data-date="${rec.date}" title="${dateFullLabel}">
+          ${todayBadge}
+          <div class="cal-day-date">${dateLabel}</div>
+          <div class="cal-day-status-icon">${statusIcon}</div>
+          ${scoreBadge}
+          ${hintBadge}
+        </div>
+      `;
+    });
+    html += '</div>';
+
+    html += '<div class="cal-list-section"><h3>详细记录</h3><div class="cal-records-list">';
+    records.forEach(rec => {
+      const dateLabel = rec.isToday ? '今天' : formatDateLabel(rec.date);
+      let statusText = '';
+      let statusClass = '';
+      if (rec.isToday) {
+        if (rec.completed) { statusText = '已完成'; statusClass = 'st-completed'; }
+        else if (rec.hasAttempt) { statusText = '挑战中'; statusClass = 'st-playing'; }
+        else { statusText = '待挑战'; statusClass = 'st-available'; }
+      } else {
+        if (rec.completed) { statusText = '已完成'; statusClass = 'st-completed'; }
+        else if (rec.hasAttempt) { statusText = '未通过'; statusClass = 'st-failed'; }
+        else { statusText = '未参与'; statusClass = 'st-missed'; }
+      }
+
+      const canInteract = rec.isToday || rec.completed || rec.hasAttempt;
+      const clickableClass = canInteract ? 'cal-rec-clickable' : '';
+      const cursorStyle = canInteract ? 'cursor:pointer' : 'cursor:default;opacity:0.6';
+
+      html += `
+        <div class="cal-record-card ${clickableClass} ${statusClass}" data-date="${rec.date}" style="${cursorStyle}">
+          <div class="cal-rec-header">
+            <div>
+              <span class="cal-rec-date">${dateLabel}</span>
+              <span class="cal-rec-status ${statusClass}">${statusText}</span>
+            </div>
+            ${rec.hintUsed ? '<span class="cal-rec-hint-tag">💡 提示</span>' : ''}
+          </div>
+          <div class="cal-rec-stats">
+            <div class="cal-rec-stat">
+              <span class="cal-rec-stat-label">得分</span>
+              <span class="cal-rec-stat-val ${rec.score !== null ? '' : 'muted'}">${rec.score !== null ? rec.score : '—'}</span>
+            </div>
+            <div class="cal-rec-stat">
+              <span class="cal-rec-stat-label">用时</span>
+              <span class="cal-rec-stat-val ${rec.usedTime !== null ? '' : 'muted'}">${rec.usedTime !== null ? rec.usedTime + '秒' : '—'}</span>
+            </div>
+            <div class="cal-rec-stat">
+              <span class="cal-rec-stat-label">结果</span>
+              <span class="cal-rec-stat-val">${rec.completed ? '🎉 通过' : (rec.hasAttempt ? '⏰ 超时' : '—')}</span>
+            </div>
+          </div>
+          <div class="cal-rec-actions">
+            ${rec.isToday
+              ? '<button class="cal-btn cal-btn-primary" data-action="today">进入挑战 →</button>'
+              : (rec.completed || rec.hasAttempt
+                  ? '<button class="cal-btn cal-btn-secondary" data-action="temp">临时重玩 ↻</button>'
+                  : '<span class="cal-btn-disabled">过期未参与</span>')}
+          </div>
+        </div>
+      `;
+    });
+    html += '</div></div>';
+
+    const container = calendarModalEl.querySelector('.cal-container');
+    if (container) container.innerHTML = html;
+
+    calendarModalEl.querySelectorAll('.cal-day[data-date]').forEach(day => {
+      const dateStr = day.dataset.date;
+      const rec = records.find(r => r.date === dateStr);
+      if (rec && (rec.isToday || rec.completed || rec.hasAttempt)) {
+        day.style.cursor = 'pointer';
+        day.addEventListener('click', () => openDetailModal(dateStr));
+      }
+    });
+
+    calendarModalEl.querySelectorAll('.cal-record-card').forEach(card => {
+      const dateStr = card.dataset.date;
+      const rec = records.find(r => r.date === dateStr);
+      if (!rec) return;
+
+      card.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (btn) {
+          e.stopPropagation();
+          const action = btn.dataset.action;
+          if (action === 'today') {
+            startTodayChallenge();
+          } else if (action === 'temp') {
+            startTempPlayForDate(dateStr);
+          }
+        } else if (rec.isToday || rec.completed || rec.hasAttempt) {
+          openDetailModal(dateStr);
+        }
+      });
+    });
+  }
+
+  function openDetailModal(dateStr) {
+    if (!detailModalEl) bindCalendarUI();
+    if (!detailModalEl || !calendarOverlayEl) return;
+
+    currentDetailDate = dateStr;
+    const record = getRecordByDate(dateStr);
+    const puzzle = generatePuzzleForDate(dateStr);
+    const isToday = isSameDay(dateStr);
+    const dateLabel = isToday ? '今天' : formatDateLabel(dateStr);
+
+    let statusText = '';
+    let statusClass = '';
+    if (record) {
+      if (record.completed) { statusText = '已完成'; statusClass = 'st-completed'; }
+      else if (record.hasAttempt) { statusText = '未通过'; statusClass = 'st-failed'; }
+      else { statusText = '待挑战'; statusClass = 'st-available'; }
+    } else {
+      statusText = isToday ? '待挑战' : '未参与';
+      statusClass = isToday ? 'st-available' : 'st-missed';
+    }
+
+    let html = `
+      <div class="detail-header">
+        <h3>📜 ${dateLabel} 残页详情</h3>
+        <span class="detail-status ${statusClass}">${statusText}</span>
+      </div>
+
+      <div class="detail-section">
+        <h4>残页概览</h4>
+        <div class="pz-preview-box" style="grid-template-columns: repeat(${puzzle.cols}, 1fr)">
+          ${(puzzle.text || []).map(t => `<div class="pz-preview-item">${t}</div>`).join('')}
+        </div>
+        <div class="pz-meta">
+          <span>规格: ${puzzle.cols}×${puzzle.rows}</span>
+          <span>时限: ${puzzle.timeLimit}秒</span>
+          <span>${puzzle.enableFlip ? '支持翻转' : puzzle.enableRotation ? '支持旋转' : '基础模式'}</span>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <h4>挑战记录</h4>
+    `;
+
+    if (record) {
+      html += `
+        <div class="detail-stats-grid">
+          <div class="detail-stat">
+            <span class="detail-stat-label">最终得分</span>
+            <span class="detail-stat-val score">${record.score !== null ? record.score : '—'}</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-stat-label">使用时间</span>
+            <span class="detail-stat-val">${record.usedTime !== null ? record.usedTime + ' 秒' : '—'}</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-stat-label">使用提示</span>
+            <span class="detail-stat-val ${record.hintUsed ? 'hint-used' : ''}">${record.hintUsed ? '💡 是' : '否'}</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-stat-label">完成时间</span>
+            <span class="detail-stat-val muted">${record.completedAt ? new Date(record.completedAt).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}</span>
+          </div>
+        </div>
+      `;
+    } else {
+      html += `<div class="detail-empty">暂无挑战记录</div>`;
+    }
+
+    html += `</div><div class="detail-actions">`;
+
+    if (isToday) {
+      html += `<button class="cal-btn cal-btn-primary" id="detailStartTodayBtn">进入今日挑战 →</button>`;
+    }
+
+    if (record && (record.completed || record.hasAttempt)) {
+      html += `<button class="cal-btn cal-btn-secondary" id="detailTempPlayBtn">以临时模式再玩一遍 ↻</button>`;
+    }
+
+    html += `</div>`;
+
+    const container = detailModalEl.querySelector('.detail-container');
+    if (container) container.innerHTML = html;
+
+    const todayBtn = document.getElementById('detailStartTodayBtn');
+    if (todayBtn) todayBtn.onclick = () => { closeDetailModal(); startTodayChallenge(); };
+    const tempBtn = document.getElementById('detailTempPlayBtn');
+    if (tempBtn) tempBtn.onclick = () => { closeDetailModal(); startTempPlayForDate(dateStr); };
+
+    detailModalEl.classList.remove('hidden');
+  }
+
+  function closeDetailModal() {
+    if (detailModalEl) detailModalEl.classList.add('hidden');
+    currentDetailDate = null;
+  }
+
+  function getRecordByDate(dateStr) {
+    const records = loadRecords();
+    return records.find(r => r.date === dateStr) || null;
+  }
+
+  function startTodayChallenge() {
+    closeCalendar();
+    if (onStartToday) {
+      const puzzle = getTodayPuzzle();
+      const restoreState = getSessionGameState();
+      onStartToday(puzzle, restoreState);
+    }
+  }
+
+  function startTempPlayForDate(dateStr) {
+    closeDetailModal();
+    closeCalendar();
+    if (onStartTempPlay) {
+      const puzzle = generatePuzzleForDate(dateStr);
+      puzzle.id = `temp-daily-${dateStr}-${Date.now()}`;
+      puzzle.name = `临时重玩 · ${formatDateLabel(dateStr)}`;
+      puzzle._tempDailyDate = dateStr;
+      puzzle._isTempDaily = true;
+      onStartTempPlay(puzzle);
+    }
+  }
+
   return {
     generatePuzzleForDate,
     getTodayPuzzle,
@@ -437,6 +779,15 @@ const AppDailyChallenge = (() => {
     setCountdownCallbacks,
     renderRecordsPanel,
     updateCountdownDisplay,
-    isSameDay
+    isSameDay,
+    setCallbacks,
+    openCalendar,
+    closeCalendar,
+    bindCalendarUI,
+    openDetailModal,
+    closeDetailModal,
+    startTodayChallenge,
+    startTempPlayForDate,
+    getRecordByDate
   };
 })();
