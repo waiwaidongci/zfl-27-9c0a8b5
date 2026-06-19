@@ -703,6 +703,8 @@ const AppGame = (() => {
           } else {
             el.classList.remove("locked");
           }
+          el.classList.remove("wrong-orientation");
+          el.classList.remove("selected");
           if (ps.left !== null && !isNaN(ps.left)) el.style.left = ps.left + "px";
           if (ps.top !== null && !isNaN(ps.top)) el.style.top = ps.top + "px";
           if (ps.location === "board" && board) board.appendChild(el);
@@ -1039,8 +1041,19 @@ const AppGame = (() => {
     updateKeyboardHighlights();
   }
 
-  function onToolUsed(toolId, piece) {
+  function onBeforeToolUsed(toolId) {
+    if (!selectedPiece) return;
     pushHistory();
+  }
+
+  function onToolUsedCancelled() {
+    if (undoStack.length > 0) {
+      undoStack.pop();
+      updateUndoRedoButtons();
+    }
+  }
+
+  function onToolUsed(toolId, piece) {
     if (piece) {
       const el = document.querySelector('.piece[data-id="' + piece.id + '"]');
       if (el) {
@@ -1080,6 +1093,7 @@ const AppGame = (() => {
     stopDailyAutosave();
     stopLevelAutosave();
     clearLevelSave();
+    clearHistory();
     const usedTime = totalTime - time;
 
     AppSettlement.setWin(win);
@@ -1284,6 +1298,7 @@ const AppGame = (() => {
 
   function handleReset() {
     if (tutorial && tutorial.isActive()) return;
+    if (overlay && !overlay.classList.contains("hidden")) return;
     if (isDailyMode) {
       if (AppDailyChallenge) AppDailyChallenge.recordSessionStart();
       startDaily(currentPuzzle);
@@ -1304,7 +1319,7 @@ const AppGame = (() => {
     setDependencies(deps);
     cacheElements();
     bindUI();
-    AppToolbox.init({ game: { onToolUsed } });
+    AppToolbox.init({ game: { onBeforeToolUsed, onToolUsedCancelled, onToolUsed } });
   }
 
   function getIsDailyMode() {
