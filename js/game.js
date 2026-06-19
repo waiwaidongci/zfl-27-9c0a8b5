@@ -437,8 +437,11 @@ const AppGame = (() => {
         break;
       case "random":
       default:
-        left = 12 + (i % 2) * pieceW + Math.random() * 8;
-        top = 12 + Math.floor(i / 2) * pieceH + Math.random() * 6;
+        const offset = puzzle.initialScatterOffsets && puzzle.initialScatterOffsets[i];
+        const offsetX = offset && typeof offset.x === "number" ? offset.x : Math.random() * 8;
+        const offsetY = offset && typeof offset.y === "number" ? offset.y : Math.random() * 6;
+        left = 12 + (i % 2) * pieceW + offsetX;
+        top = 12 + Math.floor(i / 2) * pieceH + offsetY;
     }
 
     el.style.left = left + "px";

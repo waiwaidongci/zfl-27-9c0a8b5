@@ -56,6 +56,46 @@ const App = (() => {
       onLevelsRefresh: refreshLevels,
       onTempExit: () => {
         AppEditor.open();
+      },
+      onDailyExit: () => {
+        const startIdx = AppProgress.findStartIndex();
+        AppGame.start(startIdx);
+      },
+      onDailyFinish: (result) => {
+        AppDailyChallenge.recordResult(result);
+      }
+    });
+    AppDebugPanel.init({
+      onStartGenerated: (puzzle) => {
+        AppGame.startTemp(puzzle);
+      },
+      onToggleState: (isOpen) => {
+        const btn = document.querySelector("#generatorEntryBtn");
+        if (btn) btn.classList.toggle("is-active", isOpen);
+      }
+    });
+    AppLibrary.setOnExit(() => {
+      refreshLevels();
+    });
+    AppLibrary.setOnStartPuzzle((puzzleId) => {
+      const idx = AppData.getPuzzleIndex(puzzleId);
+      if (idx >= 0) {
+        AppGame.start(idx);
+        return;
+      }
+      const entry = AppLibrary.loadLibrary().find(item => item.puzzleId === puzzleId);
+      if (entry && entry.text && entry.cols && entry.rows && entry.theme) {
+        AppGame.startTemp({
+          id: entry.puzzleId,
+          name: entry.name || "藏书残页",
+          text: entry.text,
+          cols: entry.cols,
+          rows: entry.rows,
+          theme: entry.theme,
+          timeLimit: 120,
+          hintPenalty: 80,
+          scatterRule: "random"
+        });
       }
     });
     AppTutorial.bindUI();
@@ -65,6 +105,29 @@ const App = (() => {
         if (AppTutorial.isActive()) return;
         AppEditor.resetState();
         AppEditor.open();
+      };
+    }
+    const generatorEntryBtn = document.querySelector("#generatorEntryBtn");
+    if (generatorEntryBtn) {
+      generatorEntryBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        AppDebugPanel.toggle();
+      };
+    }
+    const dailyChallengeBtn = document.querySelector("#dailyChallengeBtn");
+    if (dailyChallengeBtn) {
+      dailyChallengeBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        const puzzle = AppDailyChallenge.getTodayPuzzle();
+        const restoreState = AppDailyChallenge.getSessionGameState();
+        AppGame.startDaily(puzzle, restoreState);
+      };
+    }
+    const libraryBtn = document.querySelector("#libraryBtn");
+    if (libraryBtn) {
+      libraryBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        AppLibrary.open();
       };
     }
     const startIdx = AppProgress.findStartIndex();

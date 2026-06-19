@@ -277,19 +277,24 @@ const AppGenerator = (() => {
     const initialPieceOrder = rng.shuffle(pieceIds);
 
     const ROTATION_OPTIONS = [0, 90, 180, 270];
-    const initialRotations = initialPieceOrder.map(id => {
+    const initialRotations = rawPieces.map(() => {
       if (initialRotationScrambled) {
         return rng.pick(ROTATION_OPTIONS);
       }
       return 0;
     });
 
-    const initialFlips = initialPieceOrder.map(id => {
+    const initialFlips = rawPieces.map(() => {
       if (initialFlipScrambled) {
         return rng.nextBoolean(0.5);
       }
       return false;
     });
+
+    const initialScatterOffsets = initialPieceOrder.map(() => ({
+      x: rng.next() * 8,
+      y: rng.next() * 6
+    }));
 
     const puzzle = {
       id: "gen-" + seed.toString().replace(/[^a-z0-9]/gi, "-"),
@@ -311,6 +316,7 @@ const AppGenerator = (() => {
       initialPieceOrder,
       initialRotations,
       initialFlips,
+      initialScatterOffsets,
       generatorOptions: {
         difficulty,
         theme: themeId,
