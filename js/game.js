@@ -461,6 +461,13 @@ const AppGame = (() => {
     AppToolbox.render();
   }
 
+  function clearSelectedPiece() {
+    selectedPiece = null;
+    document.querySelectorAll(".piece.selected").forEach(p => p.classList.remove("selected"));
+    AppToolbox.setSelectedPiece(null);
+    AppToolbox.render();
+  }
+
   function tryDrop(el, piece) {
     if (!drag) return;
     drag = null;
@@ -497,7 +504,7 @@ const AppGame = (() => {
       score = Math.max(0, score - 50);
     }
     if (piece.locked) {
-      selectedPiece = null;
+      clearSelectedPiece();
       focusMode = "tray";
       focusedTrayIndex = 0;
     }
@@ -861,10 +868,7 @@ const AppGame = (() => {
   }
 
   function cancelSelection() {
-    selectedPiece = null;
-    document.querySelectorAll(".piece.selected").forEach(p => p.classList.remove("selected"));
-    AppToolbox.setSelectedPiece(null);
-    AppToolbox.render();
+    clearSelectedPiece();
     focusMode = "tray";
     updateKeyboardHighlights();
   }
