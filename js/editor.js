@@ -559,8 +559,7 @@ const AppEditor = (() => {
     }
   }
 
-  function handleSaveTheme() {
-    const name = prompt("请输入主题名称：", "我的主题");
+  function saveThemeWithName(name) {
     if (!name || !name.trim()) return;
     const themeData = {
       name: name.trim(),
@@ -573,6 +572,53 @@ const AppEditor = (() => {
     const saved = AppData.addCustomTheme(themeData);
     editorState.savedThemeId = saved.id;
     refreshSavedThemePicker();
+  }
+
+  function handleSaveTheme() {
+    const existing = document.querySelector(".theme-name-overlay");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "lp-overlay theme-name-overlay";
+    overlay.innerHTML = `
+      <div class="lp-modal theme-name-modal" data-no-dismiss>
+        <div class="lp-modal-header">
+          <h2>收藏主题</h2>
+          <span class="lp-close-btn" data-action="close">×</span>
+        </div>
+        <div class="lp-modal-body">
+          <div class="lp-form-section">
+            <label class="lp-label" for="themeNameInput">主题名称</label>
+            <input type="text" id="themeNameInput" class="lp-input" value="我的主题" maxlength="24">
+          </div>
+        </div>
+        <div class="lp-modal-actions">
+          <button class="secondary" data-action="cancel">取消</button>
+          <button data-action="save">保存</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector("#themeNameInput");
+    const close = () => overlay.remove();
+    const save = () => {
+      saveThemeWithName(input.value);
+      close();
+    };
+
+    overlay.querySelector('[data-action="close"]').onclick = close;
+    overlay.querySelector('[data-action="cancel"]').onclick = close;
+    overlay.querySelector('[data-action="save"]').onclick = save;
+    overlay.onclick = (e) => {
+      if (e.target === overlay) close();
+    };
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") save();
+      if (e.key === "Escape") close();
+    };
+    input.focus();
+    input.select();
   }
 
   function handleDeleteSavedTheme() {
