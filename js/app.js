@@ -3,6 +3,21 @@ const App = (() => {
     AppData;
     AppProgress.init();
     AppTutorial.setGame(AppGame);
+
+    LevelPackUI.setCallbacks({
+      onImportComplete: (report) => {
+        AppProgress.init();
+        refreshLevels();
+        if (report && report.ok && report.imported.length > 0) {
+          const startIdx = AppProgress.findStartIndex();
+          AppGame.start(startIdx);
+        }
+      },
+      onExportComplete: () => {
+        refreshLevels();
+      }
+    });
+
     AppProgress.setOnLevelClick((index) => {
       if (AppTutorial.isActive()) return;
       AppGame.start(index);
@@ -128,6 +143,20 @@ const App = (() => {
       libraryBtn.onclick = () => {
         if (AppTutorial.isActive()) return;
         AppLibrary.open();
+      };
+    }
+    const packExportBtn = document.querySelector("#packExportBtn");
+    if (packExportBtn) {
+      packExportBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        LevelPackUI.openExportPicker();
+      };
+    }
+    const packImportBtn = document.querySelector("#packImportBtn");
+    if (packImportBtn) {
+      packImportBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        LevelPackUI.openImportFilePicker();
       };
     }
     const startIdx = AppProgress.findStartIndex();
