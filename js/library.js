@@ -96,7 +96,7 @@ const AppLibrary = (() => {
     const existingIdx = records.findIndex(r => r.puzzleId === puzzleId);
     if (existingIdx >= 0) {
       const existing = records[existingIdx];
-      records[existingIdx] = {
+      const merged = {
         ...existing,
         ...entry,
         bestScore: Math.max(existing.bestScore || 0, entry.bestScore || 0),
@@ -114,8 +114,16 @@ const AppLibrary = (() => {
         rows: entry.rows || existing.rows,
         puzzleId: puzzleId
       };
+      if (entry.customColors) {
+        merged.customColors = { ...entry.customColors };
+      }
+      records[existingIdx] = merged;
     } else {
-      records.push({ puzzleId, ...entry });
+      const newEntry = { puzzleId, ...entry };
+      if (entry.customColors) {
+        newEntry.customColors = { ...entry.customColors };
+      }
+      records.push(newEntry);
     }
     saveLibrary(records);
     return records;

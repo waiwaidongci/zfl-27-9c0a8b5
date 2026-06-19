@@ -828,7 +828,11 @@ const AppGame = (() => {
     focusMode = "tray";
     focusedTrayIndex = 0;
     overlay.classList.add("hidden");
-    applyTheme(currentPuzzle.theme);
+    const effectiveTheme = { ...currentPuzzle.theme };
+    if (currentPuzzle.customColors) {
+      effectiveTheme.customColors = { ...currentPuzzle.customColors };
+    }
+    applyTheme(effectiveTheme);
     AppSettlement.reset();
     AppSettlement.setHintUsed(false);
     AppToolbox.setPuzzleConfig(currentPuzzle);

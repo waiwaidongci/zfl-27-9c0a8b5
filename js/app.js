@@ -186,7 +186,7 @@ const App = (() => {
       }
       const entry = AppLibrary.loadLibrary().find(item => item.puzzleId === puzzleId);
       if (entry && entry.text && entry.cols && entry.rows && entry.theme) {
-        AppGame.startTemp({
+        const tempPuzzle = {
           id: entry.puzzleId,
           name: entry.name || "藏书残页",
           text: entry.text,
@@ -196,7 +196,11 @@ const App = (() => {
           timeLimit: 120,
           hintPenalty: 80,
           scatterRule: "random"
-        });
+        };
+        if (entry.customColors) {
+          tempPuzzle.customColors = { ...entry.customColors };
+        }
+        AppGame.startTemp(tempPuzzle);
       }
     });
     AppTutorial.bindUI();
