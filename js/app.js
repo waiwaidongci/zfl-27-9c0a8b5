@@ -1,11 +1,19 @@
 const App = (() => {
   let lastMainlineIndex = 0;
   let isLibraryOpen = false;
+  let isGeneratorOpen = false;
 
   function init() {
     AppData;
     AppProgress.init();
     AppTutorial.setGame(AppGame);
+
+    AppDebugPanel.init({
+      onStartGenerated: (puzzle) => {
+        AppGame.startTemp(puzzle);
+        refreshLevels();
+      }
+    });
 
     AppDailyChallenge.setCountdownCallbacks({
       onUpdate: (formatted) => {
@@ -115,6 +123,14 @@ const App = (() => {
       };
     }
 
+    const generatorBtn = document.querySelector("#generatorEntryBtn");
+    if (generatorBtn) {
+      generatorBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        handleToggleGenerator();
+      };
+    }
+
     refreshDailyPanel();
 
     const hasActiveSession = AppDailyChallenge.hasActiveSession();
@@ -185,6 +201,38 @@ const App = (() => {
     const btn = document.querySelector("#libraryEntryBtn");
     if (!btn) return;
     if (isLibraryOpen) {
+      btn.classList.add('is-active');
+    } else {
+      btn.classList.remove('is-active');
+    }
+  }
+
+  function handleToggleGenerator() {
+    if (isGeneratorOpen) {
+      handleExitGenerator();
+    } else {
+      handleEnterGenerator();
+    }
+  }
+
+  function handleEnterGenerator() {
+    AppGame.pauseTimer();
+    isGeneratorOpen = true;
+    AppDebugPanel.open();
+    updateGeneratorBtnState();
+  }
+
+  function handleExitGenerator() {
+    isGeneratorOpen = false;
+    AppDebugPanel.close();
+    AppGame.resumeTimer();
+    updateGeneratorBtnState();
+  }
+
+  function updateGeneratorBtnState() {
+    const btn = document.querySelector("#generatorEntryBtn");
+    if (!btn) return;
+    if (isGeneratorOpen) {
       btn.classList.add('is-active');
     } else {
       btn.classList.remove('is-active');
