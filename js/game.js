@@ -152,7 +152,9 @@ const AppGame = (() => {
     const newPuzzleId = newPuzzle ? newPuzzle.id : null;
 
     if (oldPuzzleId !== null) {
-      const oldSaveKey = oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId);
+      const oldSaveKey = currentPuzzle && currentPuzzle._saveKey
+        ? currentPuzzle._saveKey
+        : (oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId));
       const isSwitchingDifferentLevel = oldPuzzleId !== newPuzzleId;
       if (isSwitchingDifferentLevel) {
         if (oldSaveKey) localStorage.removeItem(oldSaveKey);
@@ -215,9 +217,9 @@ const AppGame = (() => {
     const newTempId = "temp_" + hashString([puzzle.name || "temp", Date.now()].join("_"));
 
     if (oldPuzzleId !== null && !isDailyMode) {
-      const oldSaveKey = oldPuzzleId === "temp"
-        ? (currentPuzzle && currentPuzzle._saveKey ? currentPuzzle._saveKey : TEMP_SAVE_KEY)
-        : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId);
+      const oldSaveKey = currentPuzzle && currentPuzzle._saveKey
+        ? currentPuzzle._saveKey
+        : (oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId));
       const isSwitchingDifferentTemp = oldSaveKey !== newTempSaveKey;
       if (isSwitchingDifferentTemp) {
         if (oldSaveKey) localStorage.removeItem(oldSaveKey);
