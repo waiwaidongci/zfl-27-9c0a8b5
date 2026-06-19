@@ -116,7 +116,12 @@ const App = (() => {
       progress: AppProgress,
       onLevelsRefresh: refreshLevels,
       onTempExit: () => {
-        AppEditor.open();
+        if (window._genTempReturn) {
+          window._genTempReturn = false;
+          AppGeneratorUI.openPreview();
+        } else {
+          AppEditor.open();
+        }
       },
       onTempDailyExit: () => {
         AppDailyChallenge.openCalendar();
@@ -136,6 +141,34 @@ const App = (() => {
       onToggleState: (isOpen) => {
         const btn = document.querySelector("#generatorEntryBtn");
         if (btn) btn.classList.toggle("is-active", isOpen);
+      }
+    });
+    AppGeneratorUI.setCallbacks({
+      onStartPreview: (puzzle) => {
+        AppGeneratorUI.close();
+        setTimeout(() => {
+          AppGame.startTemp(puzzle);
+        }, 50);
+      },
+      onSaveCustom: (puzzle) => {
+        const saved = AppData.addCustomPuzzle(puzzle);
+        AppProgress.ensureProgressSize();
+        const allPuzzles = AppData.getAllPuzzles();
+        const idx = allPuzzles.findIndex(p => p.id === saved.id);
+        if (idx >= 0) {
+          AppProgress.updateProgress(idx, { unlocked: true });
+        }
+        refreshLevels();
+        setTimeout(() => {
+          const newIdx = AppData.getAllPuzzles().findIndex(p => p.id === saved.id);
+          if (newIdx >= 0) AppGame.start(newIdx);
+        }, 50);
+      },
+      onOpenEditor: (puzzle) => {
+        AppEditor.open(puzzle);
+      },
+      onBack: () => {
+        refreshLevels();
       }
     });
     AppLibrary.setOnExit(() => {
@@ -183,7 +216,7 @@ const App = (() => {
     if (generatorEntryBtn) {
       generatorEntryBtn.onclick = () => {
         if (AppTutorial.isActive()) return;
-        AppDebugPanel.toggle();
+        AppGeneratorUI.open();
       };
     }
     const dailyChallengeBtn = document.querySelector("#dailyChallengeBtn");

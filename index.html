@@ -16,7 +16,7 @@
         <button id="editorEntryBtn" class="editor-entry-btn">残页编辑器</button>
         <button id="packExportBtn" class="pack-btn pack-export-btn">📦 导出关卡包</button>
         <button id="packImportBtn" class="pack-btn pack-import-btn">📥 导入关卡包</button>
-        <button id="generatorEntryBtn" class="secondary">🔧 生成器</button>
+        <button id="generatorEntryBtn" class="secondary">✨ 生成残页</button>
         <button id="tutorialEntryBtn" class="tutorial-entry-btn">新手引导</button>
         <button id="resetBtn">重开本关</button>
       </div>
@@ -188,6 +188,15 @@
     </div>
   </div>
 
+  <div class="generator-view" id="generatorView">
+    <div class="generator-breadcrumb">
+      <span class="crumb" id="generatorBackBtn">← 返回游戏</span>
+      <span class="sep">/</span>
+      <span class="current" id="generatorStepTitle">残页生成器</span>
+    </div>
+    <div class="generator-container" id="generatorContainer"></div>
+  </div>
+
   <div class="library-view" id="libraryView">
     <div class="library-container" id="libraryContainer"></div>
   </div>
@@ -243,6 +252,7 @@
   <script src="js/thesaurus.js"></script>
   <script src="js/levelAdapter.js"></script>
   <script src="js/generator.js"></script>
+  <script src="js/generatorUI.js"></script>
   <script src="js/pieceState.js"></script>
   <script src="js/themeRenderer.js"></script>
   <script src="js/settlement.js"></script>
