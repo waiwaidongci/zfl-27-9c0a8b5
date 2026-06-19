@@ -174,6 +174,8 @@ const AppLibrary = (() => {
 
     if (filterStatus === "completed") {
       records = records.filter(r => r.bestScore > 0);
+    } else if (filterStatus === "perfect") {
+      records = records.filter(r => r.rating && r.rating.includes("完美"));
     }
 
     records.forEach(r => {
@@ -629,7 +631,7 @@ const AppLibrary = (() => {
       case "total":
         break;
       case "perfect":
-        filterStatus = "completed";
+        filterStatus = "perfect";
         break;
       case "noHint":
         setFilter("hint", "no");
