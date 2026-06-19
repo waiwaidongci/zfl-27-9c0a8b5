@@ -45,6 +45,11 @@ const AppGame = (() => {
   let tutorial = null;
   let progress = null;
   let dailyAutosaveTimer = null;
+  let levelAutosaveTimer = null;
+
+  const LEVEL_SAVE_KEY_PREFIX = "zfl27LevelSave_";
+  const TEMP_SAVE_KEY = "zfl27TempSave";
+  const AUTOSAVE_INTERVAL = 3000;
 
   function setDependencies(deps) {
     if (deps.tutorial) tutorial = deps.tutorial;
@@ -133,25 +138,58 @@ const AppGame = (() => {
     tableText.textContent = tableTheme.name;
   }
 
-  function start(index) {
+  function start(index, options) {
     if (progress) {
       const p = progress.getProgressAt(index);
       if (!p || !p.unlocked) return;
     }
     stopDailyAutosave();
+    stopLevelAutosave();
+
+    const oldPuzzleId = currentPuzzle ? currentPuzzle.id : null;
+    const newPuzzle = AppData.getPuzzleByIndex(index);
+    const newPuzzleId = newPuzzle ? newPuzzle.id : null;
+    const isSwitchingDifferentLevel = oldPuzzleId !== null && oldPuzzleId !== newPuzzleId;
+    if (isSwitchingDifferentLevel) {
+      const oldSaveKey = oldPuzzleId ? (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId) : null;
+      if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+    }
+
     currentIndex = index;
     isTempMode = false;
     isDailyMode = false;
-    currentPuzzle = AppData.getPuzzleByIndex(index);
+    currentPuzzle = newPuzzle;
     initGameState();
     if (onLevelsRefresh) onLevelsRefresh();
     renderPuzzle();
+
+    const opts = options || {};
+    const tryRestore = opts.forceNew !== true;
+    let saveKey = null;
+    if (tryRestore) {
+      saveKey = getLevelSaveKey();
+    }
+    const savedState = saveKey ? loadLevelSave(saveKey) : null;
+    if (savedState) {
+      restoreGameState(savedState);
+    }
+
     startTimer();
+    startLevelAutosave();
     updateHud();
   }
 
-  function startTemp(puzzle) {
+  function startTemp(puzzle, options) {
     stopDailyAutosave();
+    stopLevelAutosave();
+
+    const oldPuzzleId = currentPuzzle ? currentPuzzle.id : null;
+    const isSwitchingDifferentLevel = oldPuzzleId !== null && oldPuzzleId !== "temp";
+    if (isSwitchingDifferentLevel) {
+      const oldSaveKey = oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId);
+      if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+    }
+
     currentIndex = -1;
     isTempMode = true;
     isDailyMode = false;
@@ -159,11 +197,35 @@ const AppGame = (() => {
     initGameState();
     if (onLevelsRefresh) onLevelsRefresh();
     renderPuzzle();
+
+    const opts = options || {};
+    const tryRestore = opts.forceNew !== true;
+    const savedState = tryRestore ? loadLevelSave(TEMP_SAVE_KEY) : null;
+    if (savedState) {
+      restoreGameState(savedState);
+    }
+
     startTimer();
+    startLevelAutosave();
     updateHud();
   }
 
+  function clearLevelSaveForSwitch() {
+    if (isDailyMode) return;
+    const saveKey = getLevelSaveKey();
+    if (!saveKey) return;
+    localStorage.removeItem(saveKey);
+  }
+
   function startDaily(puzzle, restoreState) {
+    stopLevelAutosave();
+
+    const oldPuzzleId = currentPuzzle ? currentPuzzle.id : null;
+    if (oldPuzzleId !== null && !isDailyMode) {
+      const oldSaveKey = oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId);
+      if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+    }
+
     currentIndex = -1;
     isTempMode = false;
     isDailyMode = true;
@@ -233,6 +295,195 @@ const AppGame = (() => {
     if (dailyAutosaveTimer) {
       clearInterval(dailyAutosaveTimer);
       dailyAutosaveTimer = null;
+    }
+  }
+
+  function getLevelSaveKey() {
+    if (isDailyMode) return null;
+    if (isTempMode) return TEMP_SAVE_KEY;
+    if (currentPuzzle && currentPuzzle.id) {
+      return LEVEL_SAVE_KEY_PREFIX + currentPuzzle.id;
+    }
+    if (currentIndex >= 0) {
+      const allPuzzles = AppData.getAllPuzzles();
+      if (allPuzzles[currentIndex] && allPuzzles[currentIndex].id) {
+        return LEVEL_SAVE_KEY_PREFIX + allPuzzles[currentIndex].id;
+      }
+    }
+    return null;
+  }
+
+  function captureGameState() {
+    const pieceStates = pieces.map(p => {
+      const el = document.querySelector('.piece[data-id="' + p.id + '"]');
+      let left = null, top = null, location = "tray";
+      if (el) {
+        left = parseFloat(el.style.left);
+        top = parseFloat(el.style.top);
+        location = el.parentElement && el.parentElement.id === "board" ? "board" : "tray";
+      }
+      return {
+        id: p.id,
+        rotation: p.rotation,
+        flipped: p.flipped,
+        locked: p.locked,
+        col: p.col,
+        row: p.row,
+        label: p.label,
+        left,
+        top,
+        location
+      };
+    });
+    return {
+      puzzleId: currentPuzzle ? currentPuzzle.id : null,
+      puzzleName: currentPuzzle ? currentPuzzle.name : null,
+      cols: currentPuzzle ? currentPuzzle.cols : null,
+      rows: currentPuzzle ? currentPuzzle.rows : null,
+      score,
+      time,
+      totalTime,
+      hintUsed,
+      errorAttempts: AppSettlement ? AppSettlement.getErrorAttempts() : 0,
+      toolUsage: AppToolbox ? AppToolbox.getUsage() : {},
+      keyboardMode,
+      focusedCell: { ...focusedCell },
+      focusMode,
+      focusedTrayIndex,
+      selectedPieceId: selectedPiece ? selectedPiece.id : null,
+      pieceStates,
+      capturedAt: Date.now()
+    };
+  }
+
+  function saveLevelState() {
+    if (isDailyMode) return;
+    const saveKey = getLevelSaveKey();
+    if (!saveKey) return;
+    try {
+      const state = captureGameState();
+      localStorage.setItem(saveKey, JSON.stringify(state));
+    } catch (e) {}
+  }
+
+  function loadLevelSave(saveKey) {
+    try {
+      const raw = localStorage.getItem(saveKey);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function hasLevelSave() {
+    if (isDailyMode) return false;
+    const saveKey = getLevelSaveKey();
+    if (!saveKey) return false;
+    const saved = loadLevelSave(saveKey);
+    if (!saved) return false;
+    if (currentPuzzle) {
+      if (saved.cols !== currentPuzzle.cols || saved.rows !== currentPuzzle.rows) return false;
+      if (saved.puzzleId && currentPuzzle.id && saved.puzzleId !== currentPuzzle.id) return false;
+    }
+    return true;
+  }
+
+  function clearLevelSave() {
+    if (isDailyMode) return;
+    const saveKey = getLevelSaveKey();
+    if (!saveKey) return;
+    localStorage.removeItem(saveKey);
+  }
+
+  function clearAllLevelSaves() {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith(LEVEL_SAVE_KEY_PREFIX) || key === TEMP_SAVE_KEY)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+  }
+
+  function restoreGameState(savedState) {
+    if (!savedState) return false;
+    if (typeof savedState.score === "number") score = savedState.score;
+    if (typeof savedState.time === "number") time = savedState.time;
+    if (typeof savedState.totalTime === "number") totalTime = savedState.totalTime;
+    if (typeof savedState.hintUsed === "boolean") hintUsed = savedState.hintUsed;
+    if (typeof savedState.keyboardMode === "boolean") keyboardMode = savedState.keyboardMode;
+    if (savedState.focusedCell && typeof savedState.focusedCell === "object") {
+      focusedCell = { col: savedState.focusedCell.col || 0, row: savedState.focusedCell.row || 0 };
+    }
+    if (typeof savedState.focusMode === "string") focusMode = savedState.focusMode;
+    if (typeof savedState.focusedTrayIndex === "number") focusedTrayIndex = savedState.focusedTrayIndex;
+    if (AppSettlement && typeof savedState.errorAttempts === "number") {
+      const currentErrors = AppSettlement.getErrorAttempts();
+      const needed = Math.max(0, savedState.errorAttempts - currentErrors);
+      for (let i = 0; i < needed; i++) {
+        AppSettlement.incrementErrorAttempts();
+      }
+    }
+    if (AppToolbox && savedState.toolUsage) {
+      AppToolbox.setUsage(savedState.toolUsage);
+    }
+    if (savedState.pieceStates && Array.isArray(savedState.pieceStates)) {
+      savedState.pieceStates.forEach(ps => {
+        const piece = pieces.find(p => p.id === ps.id);
+        if (piece) {
+          piece.rotation = ps.rotation;
+          piece.flipped = ps.flipped;
+          piece.locked = ps.locked;
+        }
+        const el = document.querySelector('.piece[data-id="' + ps.id + '"]');
+        if (el && piece) {
+          if (ps.left !== null && !isNaN(ps.left)) el.style.left = ps.left + "px";
+          if (ps.top !== null && !isNaN(ps.top)) el.style.top = ps.top + "px";
+          if (ps.location === "board" && board) board.appendChild(el);
+          else if (ps.location === "tray" && tray) tray.appendChild(el);
+          AppPieceState.applyTransformToElement(el, piece);
+          if (ps.locked) {
+            el.classList.add("locked");
+            const p = currentPuzzle;
+            if (p && board) {
+              const cellW = board.clientWidth / p.cols;
+              const cellH = board.clientHeight / p.rows;
+              const targetX = piece.col * cellW + 5;
+              const targetY = piece.row * cellH + 5;
+              el.style.left = targetX + "px";
+              el.style.top = targetY + "px";
+              if (el.parentElement !== board) board.appendChild(el);
+            }
+          }
+        }
+      });
+      if (typeof savedState.selectedPieceId === "number") {
+        const selPiece = pieces.find(p => p.id === savedState.selectedPieceId && !p.locked);
+        if (selPiece) {
+          const selEl = document.querySelector('.piece[data-id="' + selPiece.id + '"]');
+          if (selEl) selectPiece(selPiece, selEl);
+        }
+      }
+    }
+    AppSettlement.setHintUsed(hintUsed);
+    updateKeyboardHighlights();
+    return true;
+  }
+
+  function startLevelAutosave() {
+    stopLevelAutosave();
+    if (isDailyMode) return;
+    levelAutosaveTimer = setInterval(() => {
+      saveLevelState();
+    }, AUTOSAVE_INTERVAL);
+  }
+
+  function stopLevelAutosave() {
+    if (levelAutosaveTimer) {
+      clearInterval(levelAutosaveTimer);
+      levelAutosaveTimer = null;
     }
   }
 
@@ -535,6 +786,7 @@ const AppGame = (() => {
       focusedTrayIndex = 0;
     }
     if (isDailyMode) saveDailyState();
+    else saveLevelState();
     updateHud();
     updateKeyboardHighlights();
   }
@@ -571,11 +823,14 @@ const AppGame = (() => {
     }
     AppSettlement.setToolUsage(AppToolbox.getUsage());
     if (isDailyMode) saveDailyState();
+    else saveLevelState();
   }
 
   function finish(win) {
     clearInterval(timer);
     stopDailyAutosave();
+    stopLevelAutosave();
+    clearLevelSave();
     const usedTime = totalTime - time;
 
     AppSettlement.setWin(win);
@@ -684,7 +939,7 @@ const AppGame = (() => {
         if (onTempExit) onTempExit();
       };
       retryBtn.textContent = "再试一次";
-      retryBtn.onclick = () => startTemp(currentPuzzle);
+      retryBtn.onclick = () => startTemp(currentPuzzle, { forceNew: true });
     } else {
       const allPuzzles = AppData.getAllPuzzles();
       if (win && currentIndex < allPuzzles.length - 1) {
@@ -692,12 +947,12 @@ const AppGame = (() => {
         nextBtn.onclick = () => start(currentIndex + 1);
       } else if (win) {
         nextBtn.textContent = "全部完成！重回第一页";
-        nextBtn.onclick = () => start(0);
+        nextBtn.onclick = () => start(0, { forceNew: true });
       } else {
         nextBtn.textContent = "再试一次";
-        nextBtn.onclick = () => start(currentIndex);
+        nextBtn.onclick = () => start(currentIndex, { forceNew: true });
       }
-      retryBtn.onclick = () => start(currentIndex);
+      retryBtn.onclick = () => start(currentIndex, { forceNew: true });
     }
     overlay.classList.remove("hidden");
   }
@@ -762,6 +1017,7 @@ const AppGame = (() => {
     score = Math.max(0, score - penalty);
     setTimeout(() => ghost.remove(), 900);
     if (isDailyMode) saveDailyState();
+    else saveLevelState();
     updateHud();
   }
 
@@ -771,9 +1027,9 @@ const AppGame = (() => {
       if (AppDailyChallenge) AppDailyChallenge.recordSessionStart();
       startDaily(currentPuzzle);
     } else if (isTempMode) {
-      startTemp(currentPuzzle);
+      startTemp(currentPuzzle, { forceNew: true });
     } else {
-      start(currentIndex);
+      start(currentIndex, { forceNew: true });
     }
   }
 
@@ -990,6 +1246,10 @@ const AppGame = (() => {
     getCurrentIndex,
     getIsDailyMode,
     onToolUsed,
-    updateKeyboardHighlights
+    updateKeyboardHighlights,
+    saveLevelState,
+    clearLevelSave,
+    clearAllLevelSaves,
+    hasLevelSave
   };
 })();

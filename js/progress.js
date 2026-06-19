@@ -174,11 +174,14 @@ const AppProgress = (() => {
     const isCurrent = index === currentIndex;
     let badge = "";
     let cardClass = "";
+    const hasSave = hasInProgressSave(puzzle);
     if (!p.unlocked) {
       badge = '<span class="level-badge locked-badge"><span class="lock-icon">🔒</span> 未解锁</span>';
       cardClass = "locked";
     } else if (p.completed) {
       badge = '<span class="level-badge done">✓ 已完成</span>';
+    } else if (hasSave) {
+      badge = '<span class="level-badge" style="background:#e8a33d;color:#fff">⏸ 继续修补</span>';
     } else if (isCurrent) {
       badge = '<span class="level-badge current-badge">进行中</span>';
     } else {
@@ -233,6 +236,24 @@ const AppProgress = (() => {
     }
     if (!progress[startIdx] || !progress[startIdx].unlocked) startIdx = 0;
     return startIdx;
+  }
+
+  function hasInProgressSave(puzzle) {
+    if (!puzzle || !puzzle.id) return false;
+    try {
+      const saveKey = "zfl27LevelSave_" + puzzle.id;
+      const raw = localStorage.getItem(saveKey);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      if (!data || !data.pieceStates || !Array.isArray(data.pieceStates)) return false;
+      const anyLocked = data.pieceStates.some(ps => ps.locked);
+      const anyProgress = anyLocked || (data.score !== undefined && data.score !== 1000) ||
+                         (typeof data.errorAttempts === "number" && data.errorAttempts > 0) ||
+                         data.hintUsed === true;
+      return anyProgress;
+    } catch (e) {
+      return false;
+    }
   }
 
   return {

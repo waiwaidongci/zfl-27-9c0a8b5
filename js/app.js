@@ -27,6 +27,8 @@ const App = (() => {
       const currentPuzzle = AppData.getPuzzleByIndex(AppGame.getCurrentIndex());
       const currentId = currentPuzzle ? currentPuzzle.id : null;
       const deleteIndex = AppData.getPuzzleIndex(id);
+      const saveKey = "zfl27LevelSave_" + id;
+      localStorage.removeItem(saveKey);
       AppData.deleteCustomPuzzle(id);
       AppProgress.handleCustomDeleted(deleteIndex);
       refreshLevels();
