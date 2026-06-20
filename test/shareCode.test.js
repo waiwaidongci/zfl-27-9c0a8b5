@@ -340,7 +340,11 @@ console.log("--- 13. 自定义颜色部分合法 ---");
 console.log("--- 14. __proto__ 及危险字段过滤 ---");
 {
   const malicious = makePuzzle();
-  malicious.__proto__ = { polluted: true };
+  Object.defineProperty(malicious, "__proto__", {
+    value: { polluted: true },
+    enumerable: true,
+    configurable: true
+  });
   malicious.constructor = { danger: true };
   malicious["__defineGetter__"] = { danger: true };
   malicious["__lookupSetter__"] = { danger: true };
@@ -363,24 +367,24 @@ console.log("--- 15. 解码时嵌入的 __proto__ 被过滤 ---");
   const parts = code.split(":");
   const payload = parts[3];
 
-  const maliciousObj = {
-    __proto__: { admin: true },
-    constructor: { isAdmin: true },
-    n: "被注入的名字",
-    c: 3,
-    r: 2,
-    t: ["一", "二", "三", "四", "五", "六"],
-    th: { paper: "xuanzhi", ink: "mohei", border: "none", table: "base" },
-    tl: 120,
-    hp: 80,
-    sr: "random",
-    er: false,
-    ef: false,
-    irs: false,
-    ifs: false,
-    at: ["zoom", "edgeAlign"]
-  };
+  const maliciousObj = Object.create(null);
+  maliciousObj.__proto__ = { admin: true };
+  maliciousObj.constructor = { isAdmin: true };
+  maliciousObj.n = "被注入的名字";
+  maliciousObj.c = 3;
+  maliciousObj.r = 2;
+  maliciousObj.t = ["一", "二", "三", "四", "五", "六"];
+  maliciousObj.th = { paper: "xuanzhi", ink: "mohei", border: "none", table: "base" };
+  maliciousObj.tl = 120;
+  maliciousObj.hp = 80;
+  maliciousObj.sr = "random";
+  maliciousObj.er = false;
+  maliciousObj.ef = false;
+  maliciousObj.irs = false;
+  maliciousObj.ifs = false;
+  maliciousObj.at = ["zoom", "edgeAlign"];
   const maliciousJson = JSON.stringify(maliciousObj);
+  assertIncludes(maliciousJson, "\"__proto__\"", "测试payload应真实包含 __proto__ 自有字段");
   const maliciousEncoded = (() => {
     const utf8 = unescape(encodeURIComponent(maliciousJson));
     let b64 = "";
