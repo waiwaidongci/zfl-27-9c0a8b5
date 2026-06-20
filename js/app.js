@@ -229,6 +229,55 @@ const App = (() => {
         AppGame.startTempDaily(puzzle);
       }
     });
+
+    ShareCodeUI.setCallbacks({
+      onStartTemp: (puzzle) => {
+        AppGame.startTemp(puzzle);
+      },
+      onSaveCustom: (puzzle) => {
+        const saved = AppData.addCustomPuzzle(puzzle);
+        AppProgress.ensureProgressSize();
+        const allPuzzles = AppData.getAllPuzzles();
+        const idx = allPuzzles.findIndex(p => p.id === saved.id);
+        if (idx >= 0) {
+          AppProgress.updateProgress(idx, { unlocked: true });
+        }
+        refreshLevels();
+        return saved;
+      },
+      onRefreshLevels: refreshLevels
+    });
+    ShareCodeUI.bindOverlayClicks();
+
+    const shareExportClose2 = document.querySelector("#shareExportClose2");
+    if (shareExportClose2) shareExportClose2.onclick = ShareCodeUI.closeExportModal;
+    const shareImportClose2 = document.querySelector("#shareImportClose2");
+    if (shareImportClose2) shareImportClose2.onclick = ShareCodeUI.closeImportModal;
+
+    const shareExportBtn = document.querySelector("#shareExportBtn");
+    if (shareExportBtn) {
+      shareExportBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        ShareCodeUI.exportCurrentPuzzle();
+      };
+    }
+    const shareImportBtn = document.querySelector("#shareImportBtn");
+    if (shareImportBtn) {
+      shareImportBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        ShareCodeUI.openImportModal();
+      };
+    }
+
+    const editorShareBtn = document.querySelector("#editorShareBtn");
+    if (editorShareBtn) {
+      editorShareBtn.onclick = () => {
+        if (typeof AppEditor !== "undefined" && AppEditor.getState) {
+          ShareCodeUI.exportEditorPuzzle(AppEditor.getState());
+        }
+      };
+    }
+
     const editorEntryBtn = document.querySelector("#editorEntryBtn");
     if (editorEntryBtn) {
       editorEntryBtn.onclick = () => {

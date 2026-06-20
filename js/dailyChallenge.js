@@ -684,6 +684,7 @@ const AppDailyChallenge = (() => {
 
     if (record && (record.completed || record.hasAttempt)) {
       html += `<button class="cal-btn cal-btn-secondary" id="detailTempPlayBtn">以临时模式再玩一遍 ↻</button>`;
+      html += `<button class="cal-btn cal-btn-secondary" id="detailShareBtn">🔗 分享结果</button>`;
     }
 
     html += `</div>`;
@@ -698,6 +699,12 @@ const AppDailyChallenge = (() => {
     if (todayBtn) todayBtn.onclick = () => { closeDetailModal(); startTodayChallenge(); };
     const tempBtn = document.getElementById('detailTempPlayBtn');
     if (tempBtn) tempBtn.onclick = () => { closeDetailModal(); startTempPlayForDate(dateStr); };
+    const shareBtn = document.getElementById('detailShareBtn');
+    if (shareBtn && typeof ShareCodeUI !== "undefined") {
+      shareBtn.onclick = () => {
+        ShareCodeUI.exportDailyResult(dateStr, puzzle, record);
+      };
+    }
   }
 
   function closeDetailModal() {

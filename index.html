@@ -17,6 +17,8 @@
         <button id="editorEntryBtn" class="editor-entry-btn">残页编辑器</button>
         <button id="packExportBtn" class="pack-btn pack-export-btn">📦 导出关卡包</button>
         <button id="packImportBtn" class="pack-btn pack-import-btn">📥 导入关卡包</button>
+        <button id="shareExportBtn" class="secondary share-btn" title="将当前残页生成可复制的分享码">🔗 分享残页</button>
+        <button id="shareImportBtn" class="secondary share-btn" title="粘贴分享码导入残页">📨 导入分享码</button>
         <button id="generatorEntryBtn" class="secondary">✨ 生成残页</button>
         <button id="tutorialEntryBtn" class="tutorial-entry-btn">新手引导</button>
         <button id="undoBtn" class="secondary" title="撤销 (Ctrl+Z)">↶ 撤销</button>
@@ -184,6 +186,7 @@
 
         <div class="editor-actions">
           <button id="editorCancelBtn" class="secondary">取消</button>
+          <button id="editorShareBtn" class="secondary">🔗 生成分享码</button>
           <button id="editorPreviewBtn" class="secondary">预览试玩</button>
           <button id="editorSaveBtn">保存残页</button>
         </div>
@@ -208,7 +211,8 @@
     <div class="modal">
       <h2 id="modalTitle">修补完成</h2>
       <div class="result-grid" id="modalResult"></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
+      <div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap">
+        <button id="settlementShareBtn" class="secondary" style="margin-right:auto">🔗 分享</button>
         <button id="retryBtn" class="secondary">重玩本关</button>
         <button id="nextBtn">下一关</button>
       </div>
@@ -251,6 +255,84 @@
     </div>
   </div>
 
+  <div class="share-overlay hidden" id="shareOverlay">
+    <div class="share-modal hidden" id="shareExportModal">
+      <div class="share-modal-header">
+        <h2 id="shareExportTitle">🔗 生成分享码</h2>
+        <button class="share-close-btn" id="shareExportClose" title="关闭">✕</button>
+      </div>
+      <div class="share-modal-body">
+        <div class="share-type-badge" id="shareExportType">自定义残页</div>
+        <div id="shareExportExtra"></div>
+        <div class="share-code-label">
+          <span>分享码</span>
+          <span id="shareCodeLength" class="share-code-length">长度：0 字符</span>
+        </div>
+        <textarea id="shareExportCode" class="share-code-textarea" readonly rows="6" placeholder="分享码将显示在此处..."></textarea>
+        <div class="share-tip">
+          <small>💡 将此分享码发送给朋友，对方在游戏中选择「导入分享码」粘贴即可预览和导入。</small>
+        </div>
+      </div>
+      <div class="share-modal-footer">
+        <button class="secondary" id="shareExportClose2">关闭</button>
+        <button id="shareCopyBtn">📋 复制分享码</button>
+      </div>
+    </div>
+
+    <div class="share-modal hidden" id="shareImportModal">
+      <div class="share-modal-header">
+        <h2>📨 导入分享码</h2>
+        <button class="share-close-btn" id="shareImportClose" title="关闭">✕</button>
+      </div>
+      <div class="share-modal-body">
+        <label class="share-code-label">
+          <span>粘贴分享码</span>
+        </label>
+        <textarea id="shareImportInput" class="share-code-textarea" rows="6" placeholder="在此粘贴 ZFL27:v1:... 格式的分享码..."></textarea>
+        <div id="shareImportHint" class="share-import-hint hidden"></div>
+        <div id="shareImportError" class="share-import-error hidden"></div>
+        <div class="share-tip">
+          <small>💡 分享码以「ZFL27:」开头，粘贴后会自动校验格式。</small>
+        </div>
+      </div>
+      <div class="share-modal-footer">
+        <button class="secondary" id="shareImportClose2">取消</button>
+        <button id="shareParseBtn">🔍 解析并预览</button>
+      </div>
+    </div>
+
+    <div class="share-modal share-preview-modal hidden" id="sharePreviewModal">
+      <div class="share-modal-header">
+        <div>
+          <h2 id="sharePreviewTitle">残页预览</h2>
+          <div class="share-preview-subtitle">
+            <span id="sharePreviewType" class="share-type-badge">自定义残页</span>
+            <span id="sharePreviewVersion" class="share-version-tag"></span>
+          </div>
+        </div>
+        <button class="share-close-btn" id="sharePreviewClose" title="关闭">✕</button>
+      </div>
+      <div class="share-modal-body share-preview-body">
+        <div id="sharePreviewWarnings" class="share-preview-warnings hidden"></div>
+        <div id="sharePreviewContent" class="share-preview-content"></div>
+      </div>
+      <div class="share-modal-footer" id="sharePreviewActions">
+      </div>
+    </div>
+
+    <div class="share-modal hidden" id="shareSimpleModal">
+      <div class="share-modal-header">
+        <h2 id="shareSimpleTitle">提示</h2>
+      </div>
+      <div class="share-modal-body">
+        <div id="shareSimpleMessage" class="share-simple-message"></div>
+      </div>
+      <div class="share-modal-footer">
+        <button id="shareSimpleClose">确定</button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/storage.js"></script>
   <script src="js/data.js"></script>
   <script src="js/thesaurus.js"></script>
@@ -269,6 +351,8 @@
   <script src="js/editor.js"></script>
   <script src="js/levelPack.js"></script>
   <script src="js/levelPackUI.js"></script>
+  <script src="js/shareCode.js"></script>
+  <script src="js/shareCodeUI.js"></script>
   <script src="js/dataManager.js"></script>
   <script src="js/game.js"></script>
   <script src="js/app.js"></script>

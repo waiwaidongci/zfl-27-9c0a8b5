@@ -6,6 +6,7 @@ const AppGame = (() => {
   let modalResult = null;
   let nextBtn = null;
   let retryBtn = null;
+  let settlementShareBtn = null;
   let scoreText = null;
   let timeText = null;
   let levelText = null;
@@ -76,6 +77,7 @@ const AppGame = (() => {
     modalResult = document.querySelector("#modalResult");
     nextBtn = document.querySelector("#nextBtn");
     retryBtn = document.querySelector("#retryBtn");
+    settlementShareBtn = document.querySelector("#settlementShareBtn");
     scoreText = document.querySelector("#scoreText");
     timeText = document.querySelector("#timeText");
     levelText = document.querySelector("#levelText");
@@ -1244,6 +1246,29 @@ const AppGame = (() => {
       }
       retryBtn.onclick = () => start(currentIndex, { forceNew: true });
     }
+
+    if (settlementShareBtn && typeof ShareCodeUI !== "undefined") {
+      settlementShareBtn.style.display = "inline-flex";
+      settlementShareBtn.onclick = () => {
+        if (isDailyMode && currentPuzzle.dailyDate) {
+          const record = {
+            completed: win,
+            hasAttempt: true,
+            score: finalScore,
+            usedTime: usedTime,
+            hintUsed: hintUsed,
+            completedAt: win ? Date.now() : null,
+            rating: AppSettlement.getRating()
+          };
+          ShareCodeUI.exportDailyResult(currentPuzzle.dailyDate, currentPuzzle, record);
+        } else {
+          ShareCodeUI.exportCurrentPuzzle();
+        }
+      };
+    } else if (settlementShareBtn) {
+      settlementShareBtn.style.display = "none";
+    }
+
     overlay.classList.remove("hidden");
   }
 
@@ -1342,6 +1367,14 @@ const AppGame = (() => {
 
   function getCurrentIndex() {
     return currentIndex;
+  }
+
+  function getCurrentPuzzle() {
+    return currentPuzzle ? JSON.parse(JSON.stringify(currentPuzzle)) : null;
+  }
+
+  function getIsDailyMode() {
+    return isDailyMode;
   }
 
   function init(deps) {
@@ -1575,6 +1608,7 @@ const AppGame = (() => {
     setState,
     updateHud,
     getCurrentIndex,
+    getCurrentPuzzle,
     getIsDailyMode,
     onToolUsed,
     updateKeyboardHighlights,

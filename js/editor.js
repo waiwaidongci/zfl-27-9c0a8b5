@@ -955,10 +955,16 @@ const AppEditor = (() => {
     return div.innerHTML;
   }
 
+  function getState() {
+    return JSON.parse(JSON.stringify(editorState));
+  }
+
   return {
     open,
     close,
     resetState,
-    setCallbacks
+    setCallbacks,
+    getState,
+    buildPuzzle
   };
 })();
