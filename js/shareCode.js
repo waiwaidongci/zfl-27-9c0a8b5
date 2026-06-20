@@ -34,6 +34,41 @@ const ShareCode = (() => {
   const VALID_BORDERS = ["none", "torn", "frayed", "chipped", "scalloped", "irregular"];
   const VALID_TABLES = ["base", "wood", "stone", "silk", "bamboo", "lacquer"];
 
+  const BLOCKED_KEYS = new Set([
+    "__proto__", "constructor", "prototype", "toString", "valueOf",
+    "hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable", "__defineGetter__",
+    "__defineSetter__", "__lookupGetter__", "__lookupSetter__"
+  ]);
+
+  function isSafeKey(k) {
+    if (typeof k !== "string") return false;
+    if (BLOCKED_KEYS.has(k)) return false;
+    if (k.startsWith("__") && k.endsWith("__")) return false;
+    return true;
+  }
+
+  const WHITELIST_PUZZLE_FIELDS = new Set([
+    "name", "cols", "rows", "text", "theme", "timeLimit", "hintPenalty",
+    "scatterRule", "enableRotation", "enableFlip", "initialRotationScrambled",
+    "initialFlipScrambled", "availableTools", "customColors", "source", "author",
+    "note", "createdAt"
+  ]);
+
+  const WHITELIST_DAILY_FIELDS = new Set([
+    "puzzle", "score", "usedTime", "hintUsed", "completed", "rating", "dailyDate"
+  ]);
+
+  function filterByWhitelist(obj, whitelist) {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
+    const result = {};
+    Object.keys(obj).forEach(k => {
+      if (!isSafeKey(k)) return;
+      if (!whitelist.has(k)) return;
+      result[k] = obj[k];
+    });
+    return result;
+  }
+
   function fnv1a32(str) {
     let hash = 0x811c9dc5;
     for (let i = 0; i < str.length; i++) {
@@ -83,7 +118,9 @@ const ShareCode = (() => {
     if (Array.isArray(obj)) return obj.map(abbreviateFields);
     const result = {};
     Object.keys(obj).forEach(k => {
+      if (!isSafeKey(k)) return;
       const shortKey = FIELD_ABBREV[k] || k;
+      if (!isSafeKey(shortKey)) return;
       result[shortKey] = abbreviateFields(obj[k]);
     });
     return result;
@@ -92,9 +129,11 @@ const ShareCode = (() => {
   function expandFields(obj) {
     if (obj == null || typeof obj !== "object") return obj;
     if (Array.isArray(obj)) return obj.map(expandFields);
-    const result = {};
+    const result = Object.create(null);
     Object.keys(obj).forEach(k => {
+      if (!isSafeKey(k)) return;
       const longKey = FIELD_EXPAND[k] || k;
+      if (!isSafeKey(longKey)) return;
       result[longKey] = expandFields(obj[k]);
     });
     return result;
@@ -102,10 +141,15 @@ const ShareCode = (() => {
 
   function sanitizeString(str, maxLen, fallback) {
     if (typeof str !== "string") return fallback;
-    const trimmed = str.trim();
-    if (!trimmed) return fallback;
-    if (trimmed.length > maxLen) return trimmed.slice(0, maxLen);
-    return trimmed;
+    let s = str.trim();
+    if (!s) return fallback;
+    s = s.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+    s = s.replace(/<\/?[^>]*>/g, "");
+    s = s.replace(/javascript:/gi, "");
+    s = s.replace(/on\w+\s*=/gi, "");
+    if (s.length > maxLen) s = s.slice(0, maxLen);
+    if (!s) return fallback;
+    return s;
   }
 
   function sanitizeInt(val, min, max, fallback) {
@@ -462,7 +506,10 @@ const ShareCode = (() => {
     const expanded = expandFields(rawData);
 
     if (type === TYPE_PUZZLE) {
-      const san = sanitizePuzzle(expanded);
+      const filtered = filterByWhitelist(expanded, WHITELIST_PUZZLE_FIELDS);
+      if (filtered.theme) filtered.theme = filterByWhitelist(filtered.theme, new Set(["paper", "ink", "border", "table"]));
+      if (filtered.customColors) filtered.customColors = filterByWhitelist(filtered.customColors, new Set(["paperColor", "inkColor", "tableColor"]));
+      const san = sanitizePuzzle(filtered);
       return {
         ok: san.valid,
         type: "puzzle",
@@ -473,7 +520,13 @@ const ShareCode = (() => {
         wasTruncated: san.warnings.some(w => w.includes("截断") || w.includes("过长"))
       };
     } else {
-      const san = sanitizeDailyResult(expanded);
+      const filtered = filterByWhitelist(expanded, WHITELIST_DAILY_FIELDS);
+      if (filtered.puzzle) {
+        filtered.puzzle = filterByWhitelist(filtered.puzzle, WHITELIST_PUZZLE_FIELDS);
+        if (filtered.puzzle.theme) filtered.puzzle.theme = filterByWhitelist(filtered.puzzle.theme, new Set(["paper", "ink", "border", "table"]));
+        if (filtered.puzzle.customColors) filtered.puzzle.customColors = filterByWhitelist(filtered.puzzle.customColors, new Set(["paperColor", "inkColor", "tableColor"]));
+      }
+      const san = sanitizeDailyResult(filtered);
       return {
         ok: san.valid,
         type: "daily",

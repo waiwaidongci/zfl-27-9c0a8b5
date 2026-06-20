@@ -9,6 +9,25 @@ const ShareCodeUI = (() => {
     if (callbacks.onRefreshLevels) onRefreshLevels = callbacks.onRefreshLevels;
   }
 
+  function escapeHtml(str) {
+    if (str == null) return "";
+    const s = String(str);
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/\//g, "&#x2F;")
+      .replace(/`/g, "&#x60;")
+      .replace(/=/g, "&#x3D;");
+  }
+
+  function safeText(val, fallback) {
+    if (val == null || val === "") return fallback != null ? String(fallback) : "";
+    return escapeHtml(val);
+  }
+
   const TOOL_NAMES = {
     zoom: "缩放",
     edgeAlign: "边缘对齐",
@@ -23,15 +42,16 @@ const ShareCodeUI = (() => {
     const inkName = (AppData.themes.ink[theme.ink] || {}).name || theme.ink;
     const borderName = (AppData.themes.border[theme.border] || {}).name || theme.border;
     const tableName = (AppData.themes.table[theme.table] || {}).name || theme.table;
-    parts.push(`${paperName} + ${inkName}`);
-    parts.push(`边框：${borderName}`);
-    parts.push(`台面：${tableName}`);
+    parts.push(`${escapeHtml(paperName)} + ${escapeHtml(inkName)}`);
+    parts.push(`边框：${escapeHtml(borderName)}`);
+    parts.push(`台面：${escapeHtml(tableName)}`);
     let result = parts.join("，");
     if (customColors && Object.keys(customColors).length > 0) {
       const cc = [];
-      if (customColors.paperColor) cc.push("纸色" + customColors.paperColor);
-      if (customColors.inkColor) cc.push("墨色" + customColors.inkColor);
-      if (customColors.tableColor) cc.push("台色" + customColors.tableColor);
+      const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+      if (customColors.paperColor && HEX_RE.test(customColors.paperColor)) cc.push("纸色" + customColors.paperColor);
+      if (customColors.inkColor && HEX_RE.test(customColors.inkColor)) cc.push("墨色" + customColors.inkColor);
+      if (customColors.tableColor && HEX_RE.test(customColors.tableColor)) cc.push("台色" + customColors.tableColor);
       if (cc.length > 0) result += " [自定义：" + cc.join("、") + "]";
     }
     return result;
@@ -39,11 +59,15 @@ const ShareCodeUI = (() => {
 
   function buildThemePreview(theme, customColors) {
     const colors = AppData.getThemePreviewColor({ ...theme, customColors });
+    const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+    const pColor = HEX_RE.test(colors.paper) ? colors.paper : "#f5f5f0";
+    const iColor = HEX_RE.test(colors.ink) ? colors.ink : "#2b2b2b";
+    const tColor = HEX_RE.test(colors.table) ? colors.table : "#8B4513";
     return `
       <div class="share-theme-preview">
-        <div class="theme-dot" style="background:${colors.paper}" title="纸张"></div>
-        <div class="theme-dot" style="background:${colors.ink}" title="墨色"></div>
-        <div class="theme-dot" style="background:${colors.table}" title="台面"></div>
+        <div class="theme-dot" style="background:${pColor}" title="纸张"></div>
+        <div class="theme-dot" style="background:${iColor}" title="墨色"></div>
+        <div class="theme-dot" style="background:${tColor}" title="台面"></div>
       </div>
     `;
   }
@@ -58,6 +82,12 @@ const ShareCodeUI = (() => {
           (AppProgress.getProgress()[idx] || {}).colophon || "",
           { puzzle }
         );
+        const safeDiff = diff.map(d => ({
+          ...d,
+          label: String(d.label || ""),
+          oldDisplay: String(d.oldDisplay != null ? d.oldDisplay : ""),
+          newDisplay: String(d.newDisplay != null ? d.newDisplay : "")
+        }));
         conflicts.push({
           id: ep.id,
           name: ep.name,
@@ -66,9 +96,9 @@ const ShareCodeUI = (() => {
           cols: ep.cols,
           rows: ep.rows,
           theme: ep.theme,
-          textSample: ep.text.slice(0, 4),
-          fieldDifferences: diff,
-          hasFieldDifferences: diff.length > 0
+          textSample: (ep.text || []).slice(0, 4).map(s => String(s || "")),
+          fieldDifferences: safeDiff,
+          hasFieldDifferences: safeDiff.length > 0
         });
       }
     });
@@ -224,11 +254,11 @@ const ShareCodeUI = (() => {
           if (errorBox) {
             errorBox.classList.remove("hidden");
             let msg = result.error || "解析失败";
-            if (result.hint) msg += `<br><small style="opacity:0.7">${result.hint}</small>`;
+            if (result.hint) msg += "\n" + result.hint;
             if (result.stage === "checksum") {
-              msg += `<br><small style="color:#c0683c">提示：校验失败可能是复制时遗漏了字符，分享码以冒号分隔为5段。</small>`;
+              msg += "\n提示：校验失败可能是复制时遗漏了字符，分享码以冒号分隔为5段。";
             }
-            errorBox.innerHTML = msg;
+            errorBox.textContent = msg;
           }
           return;
         }
@@ -288,7 +318,7 @@ const ShareCodeUI = (() => {
         let html = '<div class="share-warning-title">⚠️ 导入说明（已自动处理）</div>';
         html += '<ul class="share-warning-list">';
         warnings.forEach(w => {
-          html += `<li>${w}</li>`;
+          html += `<li>${safeText(w)}</li>`;
         });
         if (wasTruncated) {
           html += `<li>部分内容过长，已自动截断</li>`;
@@ -300,13 +330,32 @@ const ShareCodeUI = (() => {
       }
     }
 
+    const safeCols = Math.min(Math.max(parseInt(puzzle.cols, 10) || 2, 2), 6);
+    const safeRows = Math.min(Math.max(parseInt(puzzle.rows, 10) || 2, 2), 5);
+    const safeTimeLimit = parseInt(puzzle.timeLimit, 10) || 120;
+    const safeHintPenalty = parseInt(puzzle.hintPenalty, 10) || 80;
+    const safeTotal = safeCols * safeRows;
+    const safeScatterName = safeText((AppData.scatterRules[puzzle.scatterRule] || {}).name || puzzle.scatterRule);
+
+    const orientParts = [];
+    if (puzzle.enableRotation) orientParts.push("支持旋转");
+    if (puzzle.enableFlip) orientParts.push("支持翻转");
+    if (puzzle.initialRotationScrambled) orientParts.push("初始旋转打乱");
+    if (puzzle.initialFlipScrambled) orientParts.push("初始翻面打乱");
+
+    const safeOrient = orientParts.length > 0 ? orientParts.map(p => safeText(p)).join("、") : "基础模式";
+    const safeTools = puzzle.availableTools.map(t => safeText(TOOL_NAMES[t] || t)).join("、");
+    const safeCreatedAt = (puzzle.createdAt && Number.isFinite(puzzle.createdAt) && puzzle.createdAt > 0)
+      ? safeText(new Date(puzzle.createdAt).toLocaleString("zh-CN"))
+      : "";
+
     let previewHtml = "";
 
     previewHtml += `
       <div class="share-section">
         <div class="share-section-title">残页预览</div>
-        <div class="pz-preview-box share-pz-preview" style="grid-template-columns: repeat(${puzzle.cols}, 1fr)">
-          ${puzzle.text.map(t => `<div class="pz-preview-item">${t}</div>`).join("")}
+        <div class="pz-preview-box share-pz-preview" style="grid-template-columns: repeat(${safeCols}, 1fr)">
+          ${puzzle.text.slice(0, safeTotal).map(t => `<div class="pz-preview-item">${safeText(t, "残")}</div>`).join("")}
         </div>
       </div>
     `;
@@ -317,23 +366,23 @@ const ShareCodeUI = (() => {
         <div class="share-info-grid">
           <div class="share-info-row">
             <span>残页名称</span>
-            <b>${puzzle.name}</b>
+            <b>${safeText(puzzle.name, "未命名残页")}</b>
           </div>
           <div class="share-info-row">
             <span>尺寸规格</span>
-            <b>${puzzle.cols} × ${puzzle.rows}（${puzzle.cols * puzzle.rows} 片）</b>
+            <b>${safeCols} × ${safeRows}（${safeTotal} 片）</b>
           </div>
           <div class="share-info-row">
             <span>时间限制</span>
-            <b>${puzzle.timeLimit} 秒</b>
+            <b>${safeTimeLimit} 秒</b>
           </div>
           <div class="share-info-row">
             <span>提示扣分</span>
-            <b>${puzzle.hintPenalty} 分</b>
+            <b>${safeHintPenalty} 分</b>
           </div>
           <div class="share-info-row">
             <span>散落方式</span>
-            <b>${(AppData.scatterRules[puzzle.scatterRule] || {}).name || puzzle.scatterRule}</b>
+            <b>${safeScatterName}</b>
           </div>
         </div>
       </div>
@@ -349,67 +398,70 @@ const ShareCodeUI = (() => {
       </div>
     `;
 
-    const orientParts = [];
-    if (puzzle.enableRotation) orientParts.push("支持旋转");
-    if (puzzle.enableFlip) orientParts.push("支持翻转");
-    if (puzzle.initialRotationScrambled) orientParts.push("初始旋转打乱");
-    if (puzzle.initialFlipScrambled) orientParts.push("初始翻面打乱");
-
     previewHtml += `
       <div class="share-section">
         <div class="share-section-title">功能配置</div>
         <div class="share-info-grid">
           <div class="share-info-row">
             <span>方向设置</span>
-            <b>${orientParts.length > 0 ? orientParts.join("、") : "基础模式"}</b>
+            <b>${safeOrient}</b>
           </div>
           <div class="share-info-row">
             <span>可用工具</span>
-            <b>${puzzle.availableTools.map(t => TOOL_NAMES[t] || t).join("、")}</b>
+            <b>${safeTools}</b>
           </div>
         </div>
       </div>
     `;
 
     if (isDaily && parseResult.data) {
+      const safeDailyDate = safeText(parseResult.data.dailyDate || "未知");
+      const safeScore = parseInt(parseResult.data.score, 10) || 0;
+      const safeUsed = parseInt(parseResult.data.usedTime, 10) || 0;
+      const safeHint = parseResult.data.hintUsed ? "是" : "否";
+      const safeCompleted = !!parseResult.data.completed;
+      const safeRating = safeText(parseResult.data.rating || "已完成");
+      const resultClass = safeCompleted ? 'share-ok' : 'share-fail';
+      const resultText = safeCompleted ? safeRating : "未通过";
       previewHtml += `
         <div class="share-section">
           <div class="share-section-title">挑战结果</div>
           <div class="share-info-grid">
             <div class="share-info-row">
               <span>挑战日期</span>
-              <b>${parseResult.data.dailyDate || "未知"}</b>
+              <b>${safeDailyDate}</b>
             </div>
             <div class="share-info-row">
               <span>最终得分</span>
-              <b>${parseResult.data.score}</b>
+              <b>${safeScore}</b>
             </div>
             <div class="share-info-row">
               <span>使用时间</span>
-              <b>${parseResult.data.usedTime} 秒</b>
+              <b>${safeUsed} 秒</b>
             </div>
             <div class="share-info-row">
               <span>使用提示</span>
-              <b>${parseResult.data.hintUsed ? "是" : "否"}</b>
+              <b>${safeHint}</b>
             </div>
             <div class="share-info-row">
               <span>评级</span>
-              <b class="${parseResult.data.completed ? 'share-ok' : 'share-fail'}">${parseResult.data.completed ? (parseResult.data.rating || "已完成") : "未通过"}</b>
+              <b class="${resultClass}">${resultText}</b>
             </div>
           </div>
         </div>
       `;
     }
 
-    if (puzzle.source || puzzle.author || puzzle.note || puzzle.createdAt) {
+    const hasSourceInfo = puzzle.source || puzzle.author || puzzle.note || safeCreatedAt;
+    if (hasSourceInfo) {
       previewHtml += `
         <div class="share-section">
           <div class="share-section-title">来源信息</div>
           <div class="share-info-grid">
-            ${puzzle.source ? `<div class="share-info-row"><span>来源</span><b>${puzzle.source}</b></div>` : ""}
-            ${puzzle.author ? `<div class="share-info-row"><span>作者</span><b>${puzzle.author}</b></div>` : ""}
-            ${puzzle.createdAt ? `<div class="share-info-row"><span>生成时间</span><b>${new Date(puzzle.createdAt).toLocaleString("zh-CN")}</b></div>` : ""}
-            ${puzzle.note ? `<div class="share-info-row share-note-row"><span>备注</span><b>${puzzle.note}</b></div>` : ""}
+            ${puzzle.source ? `<div class="share-info-row"><span>来源</span><b>${safeText(puzzle.source)}</b></div>` : ""}
+            ${puzzle.author ? `<div class="share-info-row"><span>作者</span><b>${safeText(puzzle.author)}</b></div>` : ""}
+            ${safeCreatedAt ? `<div class="share-info-row"><span>生成时间</span><b>${safeCreatedAt}</b></div>` : ""}
+            ${puzzle.note ? `<div class="share-info-row share-note-row"><span>备注</span><b>${safeText(puzzle.note)}</b></div>` : ""}
           </div>
         </div>
       `;
@@ -422,30 +474,43 @@ const ShareCodeUI = (() => {
           <div class="share-conflict-list">
       `;
       conflicts.forEach(cf => {
+        const safeCfName = safeText(cf.name);
+        const cfTag = cf.isBuiltin ? "内置关卡" : "自定义残页";
+        const cfTagClass = cf.isBuiltin ? 'builtin' : 'custom';
+        const safeCfCols = parseInt(cf.cols, 10) || 0;
+        const safeCfRows = parseInt(cf.rows, 10) || 0;
+        const safeCfSample = cf.textSample.map(t => safeText(t)).join("、");
+        let diffHtml = "";
+        if (cf.hasFieldDifferences) {
+          const diffItems = cf.fieldDifferences.slice(0, 5).map(d => `
+            <li>
+              <b>${safeText(d.label)}</b>：
+              原「${safeText(d.oldDisplay)}」→
+              新「${safeText(d.newDisplay)}」
+            </li>
+          `).join("");
+          const moreHtml = cf.fieldDifferences.length > 5
+            ? `<li>...还有 ${escapeHtml(String(cf.fieldDifferences.length - 5))} 项差异</li>`
+            : "";
+          diffHtml = `
+            <div class="share-conflict-diff">
+              <div class="share-conflict-diff-title">与导入残页的差异：</div>
+              <ul>${diffItems}${moreHtml}</ul>
+            </div>
+          `;
+        } else {
+          diffHtml = '<div class="share-conflict-same">内容完全相同</div>';
+        }
         previewHtml += `
           <div class="share-conflict-card">
             <div class="share-conflict-header">
-              <span class="share-conflict-name">${cf.name}</span>
-              <span class="share-conflict-tag ${cf.isBuiltin ? 'builtin' : 'custom'}">${cf.isBuiltin ? "内置关卡" : "自定义残页"}</span>
+              <span class="share-conflict-name">${safeCfName}</span>
+              <span class="share-conflict-tag ${cfTagClass}">${cfTag}</span>
             </div>
             <div class="share-conflict-meta">
-              尺寸 ${cf.cols}×${cf.rows}，文字示例：${cf.textSample.join("、")}
+              尺寸 ${safeCfCols}×${safeCfRows}，文字示例：${safeCfSample}
             </div>
-            ${cf.hasFieldDifferences ? `
-              <div class="share-conflict-diff">
-                <div class="share-conflict-diff-title">与导入残页的差异：</div>
-                <ul>
-                  ${cf.fieldDifferences.slice(0, 5).map(d => `
-                    <li>
-                      <b>${d.label}</b>：
-                      原「${d.oldDisplay}」→
-                      新「${d.newDisplay}」
-                    </li>
-                  `).join("")}
-                  ${cf.fieldDifferences.length > 5 ? `<li>...还有 ${cf.fieldDifferences.length - 5} 项差异</li>` : ""}
-                </ul>
-              </div>
-            ` : '<div class="share-conflict-same">内容完全相同</div>'}
+            ${diffHtml}
           </div>
         `;
       });
