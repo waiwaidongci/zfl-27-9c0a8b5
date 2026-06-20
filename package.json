@@ -1,0 +1,17 @@
+{
+  "name": "zfl27",
+  "version": "1.0.0",
+  "private": true,
+  "description": "古籍修补台 - 静态前端拼字解谜游戏",
+  "scripts": {
+    "serve": "http-server -p 8765 -c-1 .",
+    "test:sharecode": "node test/shareCode.test.js",
+    "test:smoke": "playwright test",
+    "test": "npm run test:sharecode && npm run test:smoke",
+    "install:browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "http-server": "^14.1.1"
+  }
+}
