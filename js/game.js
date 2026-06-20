@@ -55,8 +55,6 @@ const AppGame = (() => {
   let levelAutosaveTimer = null;
   let isTempDailyMode = false;
 
-  const LEVEL_SAVE_KEY_PREFIX = "zfl27LevelSave_";
-  const TEMP_SAVE_KEY = "zfl27TempSave";
   const AUTOSAVE_INTERVAL = 3000;
 
   function setDependencies(deps) {
@@ -183,6 +181,16 @@ const AppGame = (() => {
     tableText.textContent = customTableColor ? (tableTheme.name + " (" + customTableColor + ")") : tableTheme.name;
   }
 
+  function deleteSaveForPuzzle(puzzle, isTemp, saveSignature) {
+    if (!puzzle) return;
+    if (isTemp) {
+      const sig = saveSignature || (puzzle._saveSignature);
+      if (sig) AppStorage.deleteTempSave(sig);
+    } else if (puzzle.id) {
+      AppStorage.deleteLevelSave(puzzle.id);
+    }
+  }
+
   function start(index, options) {
     if (progress) {
       const p = progress.getProgressAt(index);
@@ -192,20 +200,17 @@ const AppGame = (() => {
     stopLevelAutosave();
 
     const opts = options || {};
-    const oldPuzzleId = currentPuzzle ? currentPuzzle.id : null;
+    const oldPuzzle = currentPuzzle;
     const newPuzzle = AppData.getPuzzleByIndex(index);
     const newPuzzleId = newPuzzle ? newPuzzle.id : null;
+    const oldPuzzleId = oldPuzzle ? oldPuzzle.id : null;
 
     if (oldPuzzleId !== null) {
-      const oldSaveKey = currentPuzzle && currentPuzzle._saveKey
-        ? currentPuzzle._saveKey
-        : (oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId));
       const isSwitchingDifferentLevel = oldPuzzleId !== newPuzzleId;
       if (isSwitchingDifferentLevel) {
-        if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+        deleteSaveForPuzzle(oldPuzzle, isTempMode, oldPuzzle._saveSignature);
       } else if (opts.forceNew === true) {
-        const currentSaveKey = newPuzzleId ? (LEVEL_SAVE_KEY_PREFIX + newPuzzleId) : null;
-        if (currentSaveKey) localStorage.removeItem(currentSaveKey);
+        if (newPuzzleId) AppStorage.deleteLevelSave(newPuzzleId);
       }
     }
 
@@ -218,11 +223,10 @@ const AppGame = (() => {
     renderPuzzle();
 
     const tryRestore = opts.forceNew !== true;
-    let saveKey = null;
-    if (tryRestore) {
-      saveKey = getLevelSaveKey();
+    let savedState = null;
+    if (tryRestore && newPuzzleId) {
+      savedState = AppStorage.getLevelSave(newPuzzleId);
     }
-    const savedState = saveKey ? loadLevelSave(saveKey) : null;
     if (savedState) {
       restoreGameState(savedState);
     }
@@ -241,7 +245,7 @@ const AppGame = (() => {
     return Math.abs(hash).toString(36);
   }
 
-  function getTempPuzzleSaveKey(puzzle) {
+  function getTempPuzzleSignature(puzzle) {
     const signature = [
       puzzle.name || "",
       puzzle.cols,
@@ -249,7 +253,7 @@ const AppGame = (() => {
       (puzzle.text || []).join("|"),
       (puzzle.theme ? JSON.stringify(puzzle.theme) : "")
     ].join("__");
-    return TEMP_SAVE_KEY + "_" + hashString(signature);
+    return hashString(signature);
   }
 
   function startTemp(puzzle, options) {
@@ -257,32 +261,30 @@ const AppGame = (() => {
     stopLevelAutosave();
 
     const opts = options || {};
-    const oldPuzzleId = currentPuzzle ? currentPuzzle.id : null;
-    const newTempSaveKey = getTempPuzzleSaveKey(puzzle);
+    const oldPuzzle = currentPuzzle;
+    const newTempSignature = getTempPuzzleSignature(puzzle);
     const newTempId = "temp_" + hashString([puzzle.name || "temp", Date.now()].join("_"));
+    const oldTempSignature = oldPuzzle ? oldPuzzle._saveSignature : null;
 
-    if (oldPuzzleId !== null && !isDailyMode) {
-      const oldSaveKey = currentPuzzle && currentPuzzle._saveKey
-        ? currentPuzzle._saveKey
-        : (oldPuzzleId === "temp" ? TEMP_SAVE_KEY : (LEVEL_SAVE_KEY_PREFIX + oldPuzzleId));
-      const isSwitchingDifferentTemp = oldSaveKey !== newTempSaveKey;
+    if (oldPuzzle && !isDailyMode) {
+      const isSwitchingDifferentTemp = oldTempSignature !== newTempSignature;
       if (isSwitchingDifferentTemp) {
-        if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+        deleteSaveForPuzzle(oldPuzzle, isTempMode, oldTempSignature);
       } else if (opts.forceNew === true) {
-        localStorage.removeItem(newTempSaveKey);
+        AppStorage.deleteTempSave(newTempSignature);
       }
     }
 
     currentIndex = -1;
     isTempMode = true;
     isDailyMode = false;
-    currentPuzzle = { ...puzzle, id: newTempId, custom: true, _saveKey: newTempSaveKey };
+    currentPuzzle = { ...puzzle, id: newTempId, custom: true, _saveSignature: newTempSignature };
     initGameState();
     if (onLevelsRefresh) onLevelsRefresh();
     renderPuzzle();
 
     const tryRestore = opts.forceNew !== true;
-    const savedState = tryRestore ? loadLevelSave(newTempSaveKey) : null;
+    const savedState = tryRestore ? AppStorage.getTempSave(newTempSignature) : null;
     if (savedState) {
       restoreGameState(savedState);
     }
@@ -294,24 +296,19 @@ const AppGame = (() => {
 
   function clearLevelSaveForSwitch() {
     if (isDailyMode) return;
-    const saveKey = getLevelSaveKey();
-    if (!saveKey) return;
-    localStorage.removeItem(saveKey);
+    if (isTempMode) {
+      const sig = currentPuzzle ? currentPuzzle._saveSignature : null;
+      if (sig) AppStorage.deleteTempSave(sig);
+    } else if (currentPuzzle && currentPuzzle.id) {
+      AppStorage.deleteLevelSave(currentPuzzle.id);
+    }
   }
 
   function startDaily(puzzle, restoreState) {
     stopLevelAutosave();
 
     if (currentPuzzle && !isDailyMode) {
-      let oldSaveKey = null;
-      if (currentPuzzle._saveKey) {
-        oldSaveKey = currentPuzzle._saveKey;
-      } else if (currentPuzzle.id === "temp") {
-        oldSaveKey = TEMP_SAVE_KEY;
-      } else if (currentPuzzle.id) {
-        oldSaveKey = LEVEL_SAVE_KEY_PREFIX + currentPuzzle.id;
-      }
-      if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+      deleteSaveForPuzzle(currentPuzzle, isTempMode, currentPuzzle._saveSignature);
     }
 
     currentIndex = -1;
@@ -337,15 +334,7 @@ const AppGame = (() => {
     stopDailyAutosave();
 
     if (currentPuzzle && !isTempDailyMode && !isDailyMode) {
-      let oldSaveKey = null;
-      if (currentPuzzle._saveKey) {
-        oldSaveKey = currentPuzzle._saveKey;
-      } else if (currentPuzzle.id === "temp") {
-        oldSaveKey = TEMP_SAVE_KEY;
-      } else if (currentPuzzle.id) {
-        oldSaveKey = LEVEL_SAVE_KEY_PREFIX + currentPuzzle.id;
-      }
-      if (oldSaveKey) localStorage.removeItem(oldSaveKey);
+      deleteSaveForPuzzle(currentPuzzle, isTempMode, currentPuzzle._saveSignature);
     }
 
     currentIndex = -1;
@@ -416,26 +405,6 @@ const AppGame = (() => {
     }
   }
 
-  function getLevelSaveKey() {
-    if (isDailyMode) return null;
-    if (isTempMode) {
-      if (currentPuzzle && currentPuzzle._saveKey) {
-        return currentPuzzle._saveKey;
-      }
-      return TEMP_SAVE_KEY;
-    }
-    if (currentPuzzle && currentPuzzle.id) {
-      return LEVEL_SAVE_KEY_PREFIX + currentPuzzle.id;
-    }
-    if (currentIndex >= 0) {
-      const allPuzzles = AppData.getAllPuzzles();
-      if (allPuzzles[currentIndex] && allPuzzles[currentIndex].id) {
-        return LEVEL_SAVE_KEY_PREFIX + allPuzzles[currentIndex].id;
-      }
-    }
-    return null;
-  }
-
   function captureGameState() {
     const pieceStates = pieces.map(p => {
       const el = document.querySelector('.piece[data-id="' + p.id + '"]');
@@ -481,29 +450,26 @@ const AppGame = (() => {
 
   function saveLevelState() {
     if (isDailyMode) return;
-    const saveKey = getLevelSaveKey();
-    if (!saveKey) return;
     try {
       const state = captureGameState();
-      localStorage.setItem(saveKey, JSON.stringify(state));
+      if (isTempMode) {
+        const sig = currentPuzzle ? currentPuzzle._saveSignature : null;
+        if (sig) AppStorage.setTempSave(sig, state);
+      } else if (currentPuzzle && currentPuzzle.id) {
+        AppStorage.setLevelSave(currentPuzzle.id, state);
+      }
     } catch (e) {}
-  }
-
-  function loadLevelSave(saveKey) {
-    try {
-      const raw = localStorage.getItem(saveKey);
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch (e) {
-      return null;
-    }
   }
 
   function hasLevelSave() {
     if (isDailyMode) return false;
-    const saveKey = getLevelSaveKey();
-    if (!saveKey) return false;
-    const saved = loadLevelSave(saveKey);
+    let saved = null;
+    if (isTempMode) {
+      const sig = currentPuzzle ? currentPuzzle._saveSignature : null;
+      if (sig) saved = AppStorage.getTempSave(sig);
+    } else if (currentPuzzle && currentPuzzle.id) {
+      saved = AppStorage.getLevelSave(currentPuzzle.id);
+    }
     if (!saved) return false;
     if (currentPuzzle) {
       if (saved.cols !== currentPuzzle.cols || saved.rows !== currentPuzzle.rows) return false;
@@ -514,24 +480,18 @@ const AppGame = (() => {
 
   function clearLevelSave() {
     if (isDailyMode) return;
-    const saveKey = getLevelSaveKey();
-    if (!saveKey) return;
-    localStorage.removeItem(saveKey);
+    if (isTempMode) {
+      const sig = currentPuzzle ? currentPuzzle._saveSignature : null;
+      if (sig) AppStorage.deleteTempSave(sig);
+    } else if (currentPuzzle && currentPuzzle.id) {
+      AppStorage.deleteLevelSave(currentPuzzle.id);
+    }
   }
 
   function clearAllLevelSaves() {
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (
-          key.startsWith(LEVEL_SAVE_KEY_PREFIX) ||
-          key === TEMP_SAVE_KEY ||
-          key.startsWith(TEMP_SAVE_KEY + "_")
-      )) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
+    const allSaves = AppStorage.getAllLevelSaves();
+    Object.keys(allSaves).forEach(id => AppStorage.deleteLevelSave(id));
+    AppStorage.clearAllTempSaves();
   }
 
   function restoreGameState(savedState) {

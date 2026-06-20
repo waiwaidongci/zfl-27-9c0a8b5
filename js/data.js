@@ -57,53 +57,28 @@ const AppData = (() => {
     lacquer: "#3a3025"
   };
 
-  const CUSTOM_THEMES_KEY = "zfl27CustomThemes";
-
   function getCustomThemes() {
-    try {
-      const saved = localStorage.getItem(CUSTOM_THEMES_KEY);
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (Array.isArray(data)) return data;
-      }
-    } catch (e) {}
-    return [];
+    return AppStorage.getCustomThemes();
   }
 
   function saveCustomThemes(themes) {
-    localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(themes));
+    AppStorage.setCustomThemes(themes);
   }
 
   function addCustomTheme(theme) {
-    const customs = getCustomThemes();
-    theme.id = "custom-theme-" + Date.now();
-    theme.custom = true;
-    customs.push(theme);
-    saveCustomThemes(customs);
-    return theme;
+    return AppStorage.addCustomTheme(theme);
   }
 
   function updateCustomTheme(id, theme) {
-    const customs = getCustomThemes();
-    const idx = customs.findIndex(t => t.id === id);
-    if (idx >= 0) {
-      theme.id = id;
-      theme.custom = true;
-      customs[idx] = theme;
-      saveCustomThemes(customs);
-      return true;
-    }
-    return false;
+    return AppStorage.updateCustomTheme(id, theme);
   }
 
   function deleteCustomTheme(id) {
-    const customs = getCustomThemes();
-    const filtered = customs.filter(t => t.id !== id);
-    saveCustomThemes(filtered);
+    AppStorage.deleteCustomTheme(id);
   }
 
   function getCustomThemeById(id) {
-    return getCustomThemes().find(t => t.id === id) || null;
+    return AppStorage.getCustomThemeById(id);
   }
 
   function isBuiltinThemeKey(category, key) {
@@ -229,49 +204,24 @@ const AppData = (() => {
     return builtinPuzzles;
   }
 
-  const CUSTOM_KEY = "zfl27CustomPuzzles";
-
   function getCustomPuzzles() {
-    try {
-      const saved = localStorage.getItem(CUSTOM_KEY);
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (Array.isArray(data)) return data;
-      }
-    } catch (e) {}
-    return [];
+    return AppStorage.getCustomPuzzles();
   }
 
   function saveCustomPuzzles(puzzles) {
-    localStorage.setItem(CUSTOM_KEY, JSON.stringify(puzzles));
+    AppStorage.setCustomPuzzles(puzzles);
   }
 
   function addCustomPuzzle(puzzle) {
-    const customs = getCustomPuzzles();
-    puzzle.id = "custom-" + Date.now();
-    puzzle.custom = true;
-    customs.push(puzzle);
-    saveCustomPuzzles(customs);
-    return puzzle;
+    return AppStorage.addCustomPuzzle(puzzle);
   }
 
   function updateCustomPuzzle(id, puzzle) {
-    const customs = getCustomPuzzles();
-    const idx = customs.findIndex(p => p.id === id);
-    if (idx >= 0) {
-      puzzle.id = id;
-      puzzle.custom = true;
-      customs[idx] = puzzle;
-      saveCustomPuzzles(customs);
-      return true;
-    }
-    return false;
+    return AppStorage.updateCustomPuzzle(id, puzzle);
   }
 
   function deleteCustomPuzzle(id) {
-    const customs = getCustomPuzzles();
-    const filtered = customs.filter(p => p.id !== id);
-    saveCustomPuzzles(filtered);
+    AppStorage.deleteCustomPuzzle(id);
   }
 
   function getPuzzleIndex(id) {

@@ -1,5 +1,4 @@
 const AppTutorial = (() => {
-  const TUTORIAL_KEY = "zfl27TutorialDone";
   let tutorialActive = false;
   let tutorialStep = 0;
   let tutorialFirstDropDone = false;
@@ -77,11 +76,11 @@ const AppTutorial = (() => {
   }
 
   function isTutorialDone() {
-    return localStorage.getItem(TUTORIAL_KEY) === "true";
+    return AppStorage.isTutorialCompleted();
   }
 
   function markTutorialDone() {
-    localStorage.setItem(TUTORIAL_KEY, "true");
+    AppStorage.setTutorialCompleted(true);
   }
 
   function isActive() {

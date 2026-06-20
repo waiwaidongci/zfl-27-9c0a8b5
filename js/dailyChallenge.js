@@ -1,6 +1,4 @@
 const AppDailyChallenge = (() => {
-  const STORAGE_KEY_RECORDS = "zfl27DailyRecords";
-  const STORAGE_KEY_SESSION = "zfl27DailySession";
   const MAX_HISTORY_DAYS = 7;
 
   let onStartToday = null;
@@ -138,39 +136,15 @@ const AppDailyChallenge = (() => {
   }
 
   function loadRecords() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_RECORDS);
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (Array.isArray(data)) return data;
-      }
-    } catch (e) {}
-    return [];
+    return AppStorage.getDailyRecords();
   }
 
   function saveRecords(records) {
-    localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(records));
+    AppStorage.setDailyRecords(records);
   }
 
   function addOrUpdateRecord(record) {
-    const records = loadRecords();
-    const existingIdx = records.findIndex(r => r.date === record.date);
-    if (existingIdx >= 0) {
-      const existing = records[existingIdx];
-      if (!existing.completed && record.completed) {
-        records[existingIdx] = { ...existing, ...record };
-      } else if (record.completed && record.score > existing.score) {
-        records[existingIdx] = { ...existing, ...record };
-      } else if (!existing.completed) {
-        records[existingIdx] = { ...existing, ...record };
-      }
-    } else {
-      records.push(record);
-    }
-    records.sort((a, b) => b.date.localeCompare(a.date));
-    const trimmed = records.slice(0, MAX_HISTORY_DAYS);
-    saveRecords(trimmed);
-    return trimmed;
+    return AppStorage.addOrUpdateDailyRecord(record);
   }
 
   function getRecentRecords() {
@@ -202,20 +176,17 @@ const AppDailyChallenge = (() => {
   }
 
   function saveSession(session) {
-    localStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(session));
+    AppStorage.setDailySession(session);
   }
 
   function loadSession() {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_SESSION);
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (data && data.date) {
-          if (isSameDay(data.date)) {
-            return data;
-          } else {
-            clearSession();
-          }
+      const data = AppStorage.getDailySession();
+      if (data && data.date) {
+        if (isSameDay(data.date)) {
+          return data;
+        } else {
+          clearSession();
         }
       }
     } catch (e) {}
@@ -223,7 +194,7 @@ const AppDailyChallenge = (() => {
   }
 
   function clearSession() {
-    localStorage.removeItem(STORAGE_KEY_SESSION);
+    AppStorage.clearDailySession();
   }
 
   function getCountdownMs() {

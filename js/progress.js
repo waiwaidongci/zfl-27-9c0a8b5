@@ -1,5 +1,4 @@
 const AppProgress = (() => {
-  const STORAGE_KEY = "zfl27Progress";
   let progress = [];
   let onLevelClick = null;
   let onDeleteCustom = null;
@@ -10,24 +9,19 @@ const AppProgress = (() => {
   }
 
   function loadProgress() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const data = JSON.parse(saved);
-        const allPuzzles = AppData.getAllPuzzles();
-        if (Array.isArray(data) && data.length >= AppData.getBuiltinCount()) {
-          const result = [];
-          for (let i = 0; i < allPuzzles.length; i++) {
-            if (i < data.length && data[i]) {
-              result.push(data[i]);
-            } else {
-              result.push(createDefaultProgress(i));
-            }
-          }
-          return result;
+    let data = AppStorage.getProgress();
+    const allPuzzles = AppData.getAllPuzzles();
+    if (Array.isArray(data) && data.length >= AppData.getBuiltinCount()) {
+      const result = [];
+      for (let i = 0; i < allPuzzles.length; i++) {
+        if (i < data.length && data[i]) {
+          result.push(data[i]);
+        } else {
+          result.push(createDefaultProgress(i));
         }
       }
-    } catch (e) {}
+      return result;
+    }
     return createDefaultProgressArray();
   }
 
@@ -59,7 +53,7 @@ const AppProgress = (() => {
   }
 
   function saveProgress() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    AppStorage.setProgress(progress);
   }
 
   function getProgress() {
@@ -256,10 +250,7 @@ const AppProgress = (() => {
   function hasInProgressSave(puzzle) {
     if (!puzzle || !puzzle.id) return false;
     try {
-      const saveKey = "zfl27LevelSave_" + puzzle.id;
-      const raw = localStorage.getItem(saveKey);
-      if (!raw) return false;
-      const data = JSON.parse(raw);
+      const data = AppStorage.getLevelSave(puzzle.id);
       if (!data || !data.pieceStates || !Array.isArray(data.pieceStates)) return false;
       const anyLocked = data.pieceStates.some(ps => ps.locked);
       const anyProgress = anyLocked || (data.score !== undefined && data.score !== 1000) ||

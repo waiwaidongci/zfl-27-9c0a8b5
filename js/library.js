@@ -1,6 +1,4 @@
 const AppLibrary = (() => {
-  const STORAGE_KEY = "zfl27Library";
-  const NOTES_KEY = "zfl27LibraryNotes";
 
   let currentSort = "completionDate";
   let currentSortDir = "desc";
@@ -62,100 +60,41 @@ const AppLibrary = (() => {
   }
 
   function loadLibrary() {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (Array.isArray(data)) return data;
-      }
-    } catch (e) {}
-    return [];
+    return AppStorage.getLibrary();
   }
 
   function saveLibrary(records) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    AppStorage.setLibrary(records);
   }
 
   function loadNotes() {
-    try {
-      const saved = localStorage.getItem(NOTES_KEY);
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (typeof data === "object") return data;
-      }
-    } catch (e) {}
-    return {};
+    return AppStorage.getLibraryNotes();
   }
 
   function saveNotes(notes) {
-    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+    AppStorage.setData(d => { d.libraryNotes = notes; });
   }
 
   function addOrUpdateEntry(puzzleId, entry) {
-    const records = loadLibrary();
-    const existingIdx = records.findIndex(r => r.puzzleId === puzzleId);
-    if (existingIdx >= 0) {
-      const existing = records[existingIdx];
-      const merged = {
-        ...existing,
-        ...entry,
-        bestScore: Math.max(existing.bestScore || 0, entry.bestScore || 0),
-        bestTime: existing.bestTime !== null && entry.bestTime !== null
-          ? Math.min(existing.bestTime, entry.bestTime)
-          : (entry.bestTime !== null ? entry.bestTime : existing.bestTime),
-        hintUsed: existing.hintUsed || entry.hintUsed,
-        completionDate: entry.completionDate || existing.completionDate,
-        rating: entry.rating || existing.rating,
-        colophon: entry.colophon || existing.colophon,
-        text: entry.text || existing.text,
-        theme: entry.theme || existing.theme,
-        name: entry.name || existing.name,
-        cols: entry.cols || existing.cols,
-        rows: entry.rows || existing.rows,
-        puzzleId: puzzleId
-      };
-      if (entry.customColors) {
-        merged.customColors = { ...entry.customColors };
-      }
-      records[existingIdx] = merged;
-    } else {
-      const newEntry = { puzzleId, ...entry };
-      if (entry.customColors) {
-        newEntry.customColors = { ...entry.customColors };
-      }
-      records.push(newEntry);
-    }
-    saveLibrary(records);
-    return records;
+    return AppStorage.addOrUpdateLibraryEntry(puzzleId, entry);
   }
 
   function getNote(puzzleId) {
-    const notes = loadNotes();
-    return notes[puzzleId] || "";
+    return AppStorage.getLibraryNote(puzzleId);
   }
 
   function setNote(puzzleId, text) {
-    const notes = loadNotes();
-    if (text && text.trim()) {
-      notes[puzzleId] = text.trim();
-    } else {
-      delete notes[puzzleId];
-    }
-    saveNotes(notes);
+    AppStorage.setLibraryNote(puzzleId, text);
   }
 
   function deleteNote(puzzleId) {
-    const notes = loadNotes();
-    delete notes[puzzleId];
-    saveNotes(notes);
+    AppStorage.deleteLibraryNote(puzzleId);
   }
 
   function deleteEntry(puzzleId) {
-    const records = loadLibrary();
-    const filtered = records.filter(r => r.puzzleId !== puzzleId);
-    saveLibrary(filtered);
+    AppStorage.deleteLibraryEntry(puzzleId);
     deleteNote(puzzleId);
-    return filtered;
+    return loadLibrary();
   }
 
   function getFilteredSorted() {

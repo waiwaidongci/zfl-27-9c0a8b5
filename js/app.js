@@ -1,5 +1,24 @@
 const App = (() => {
   function init() {
+    const migrateResult = AppStorage.migrate();
+    if (migrateResult && !migrateResult.success) {
+      if (migrateResult.corrupted) {
+        console.warn("[App] 数据损坏，已尝试修复。请检查数据完整性。", migrateResult);
+        if (typeof AppDataManager !== "undefined" && AppDataManager.showDataCorruptedWarning) {
+          setTimeout(() => {
+          AppDataManager.showDataCorruptedWarning(migrateResult);
+        }, 500);
+      }
+    }
+      if (migrateResult.newerSchema) {
+        console.warn("[App] 本地数据 schema 版本比当前程序新，请更新应用。", migrateResult);
+        if (typeof AppDataManager !== "undefined" && AppDataManager.showNewerSchemaWarning) {
+          setTimeout(() => {
+          AppDataManager.showNewerSchemaWarning(migrateResult);
+        }, 500);
+      }
+    }
+    }
     AppData;
     AppProgress.init();
     AppTutorial.setGame(AppGame);
@@ -27,8 +46,7 @@ const App = (() => {
       const currentPuzzle = AppData.getPuzzleByIndex(AppGame.getCurrentIndex());
       const currentId = currentPuzzle ? currentPuzzle.id : null;
       const deleteIndex = AppData.getPuzzleIndex(id);
-      const saveKey = "zfl27LevelSave_" + id;
-      localStorage.removeItem(saveKey);
+      AppStorage.deleteLevelSave(id);
       AppLibrary.deleteEntry(id);
       AppData.deleteCustomPuzzle(id);
       AppProgress.handleCustomDeleted(deleteIndex);
@@ -62,8 +80,7 @@ const App = (() => {
           AppData.updateCustomPuzzle(editingId, puzzle);
 
           if (dimensionsChanged) {
-            const saveKey = "zfl27LevelSave_" + editingId;
-            localStorage.removeItem(saveKey);
+            AppStorage.deleteLevelSave(editingId);
           }
 
           const libraryEntry = AppLibrary.loadLibrary().find(e => e.puzzleId === editingId);
@@ -239,6 +256,15 @@ const App = (() => {
       libraryBtn.onclick = () => {
         if (AppTutorial.isActive()) return;
         AppLibrary.open();
+      };
+    }
+    const dataManagerBtn = document.querySelector("#dataManagerBtn");
+    if (dataManagerBtn) {
+      dataManagerBtn.onclick = () => {
+        if (AppTutorial.isActive()) return;
+        if (typeof AppDataManager !== "undefined") {
+          AppDataManager.open();
+        }
       };
     }
     const packExportBtn = document.querySelector("#packExportBtn");

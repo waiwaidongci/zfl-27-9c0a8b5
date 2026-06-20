@@ -2,8 +2,6 @@ const LevelPack = (() => {
   const FORMAT_IDENTIFIER = "zfl27-level-pack";
   const FORMAT_VERSION = 1;
   const FORMAT_VERSION_MIN_COMPATIBLE = 1;
-  const BACKUP_KEY_PREFIX = "zfl27Backup_";
-  const CUSTOM_KEY = "zfl27CustomPuzzles";
 
   const REQUIRED_PUZZLE_FIELDS = ["name", "cols", "rows", "text", "theme"];
   const REQUIRED_THEME_FIELDS = ["paper", "ink", "border", "table"];
@@ -274,19 +272,9 @@ const LevelPack = (() => {
   }
 
   function createBackup() {
-    const timestamp = Date.now();
-    const backupKey = BACKUP_KEY_PREFIX + timestamp;
-    const backup = {
-      timestamp: timestamp,
-      customPuzzles: localStorage.getItem(CUSTOM_KEY) || null,
-      progress: localStorage.getItem("zfl27Progress") || null,
-      library: localStorage.getItem("zfl27Library") || null,
-      notes: localStorage.getItem("zfl27LibraryNotes") || null,
-      customThemes: localStorage.getItem("zfl27CustomThemes") || null
-    };
     try {
-      localStorage.setItem(backupKey, JSON.stringify(backup));
-      cleanupOldBackups();
+      const data = AppStorage.exportAllData();
+      const backupKey = AppStorage.createBackup(data);
       return backupKey;
     } catch (e) {
       return null;
@@ -294,51 +282,11 @@ const LevelPack = (() => {
   }
 
   function cleanupOldBackups() {
-    const keys = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(BACKUP_KEY_PREFIX)) {
-        keys.push(key);
-      }
-    }
-    keys.sort();
-    while (keys.length > 5) {
-      const oldest = keys.shift();
-      localStorage.removeItem(oldest);
-    }
   }
 
   function restoreBackup(backupKey) {
     try {
-      const raw = localStorage.getItem(backupKey);
-      if (!raw) return false;
-      const backup = JSON.parse(raw);
-      if (backup.customPuzzles !== null) {
-        localStorage.setItem(CUSTOM_KEY, backup.customPuzzles);
-      } else {
-        localStorage.removeItem(CUSTOM_KEY);
-      }
-      if (backup.progress !== null) {
-        localStorage.setItem("zfl27Progress", backup.progress);
-      } else {
-        localStorage.removeItem("zfl27Progress");
-      }
-      if (backup.library !== null) {
-        localStorage.setItem("zfl27Library", backup.library);
-      } else {
-        localStorage.removeItem("zfl27Library");
-      }
-      if (backup.notes !== null) {
-        localStorage.setItem("zfl27LibraryNotes", backup.notes);
-      } else {
-        localStorage.removeItem("zfl27LibraryNotes");
-      }
-      if (backup.customThemes !== null) {
-        localStorage.setItem("zfl27CustomThemes", backup.customThemes);
-      } else {
-        localStorage.removeItem("zfl27CustomThemes");
-      }
-      return true;
+      return AppStorage.restoreBackup(backupKey);
     } catch (e) {
       return false;
     }
@@ -715,12 +663,15 @@ const LevelPack = (() => {
     const progress = AppProgress.getProgress();
     const library = AppLibrary.loadLibrary();
     const notes = (() => {
-      try {
-        const saved = localStorage.getItem("zfl27LibraryNotes");
-        return saved ? JSON.parse(saved) : {};
-      } catch (e) {
-        return {};
-      }
+      const allLibraryNotes = AppStorage.getLibraryNotes();
+      const filtered = {};
+      levelIndices.forEach(idx => {
+        const puzzle = allPuzzles[idx];
+        if (puzzle && allLibraryNotes[puzzle.id]) {
+          filtered[puzzle.id] = allLibraryNotes[puzzle.id];
+        }
+      });
+      return filtered;
     })();
     const customThemes = AppData.getCustomThemes();
 

@@ -14,9 +14,6 @@ const AppDebugPanel = (() => {
     favorites: []
   };
 
-  const HISTORY_KEY = "zfl27_generator_history";
-  const FAVORITES_KEY = "zfl27_generator_favorites";
-
   function init(options = {}) {
     if (options.onStartGenerated) {
       onStartGenerated = options.onStartGenerated;
@@ -31,17 +28,15 @@ const AppDebugPanel = (() => {
 
   function loadState() {
     try {
-      const h = localStorage.getItem(HISTORY_KEY);
-      const f = localStorage.getItem(FAVORITES_KEY);
-      if (h) state.history = JSON.parse(h);
-      if (f) state.favorites = JSON.parse(f);
+      state.history = AppStorage.getGenHistory();
+      state.favorites = AppStorage.getGenFavorites();
     } catch (e) {}
   }
 
   function saveState() {
     try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(state.history.slice(0, 20)));
-      localStorage.setItem(FAVORITES_KEY, JSON.stringify(state.favorites.slice(0, 50)));
+      AppStorage.setGenHistory(state.history.slice(0, 20));
+      AppStorage.setGenFavorites(state.favorites.slice(0, 50));
     } catch (e) {}
   }
 
