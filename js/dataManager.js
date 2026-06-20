@@ -2,7 +2,6 @@ const AppDataManager = (() => {
   let isOpen = false;
   let panelEl = null;
   let overlayEl = null;
-  let importFileInput = null;
 
   function escapeHtml(str) {
     const div = document.createElement("div");
@@ -14,22 +13,6 @@ const AppDataManager = (() => {
     if (bytes < 1024) return bytes + " B";
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
     return (bytes / (1024 * 1024)).toFixed(2) + " MB";
-  }
-
-  function ensureImportFileInput() {
-    if (importFileInput) return importFileInput;
-    importFileInput = document.createElement("input");
-    importFileInput.type = "file";
-    importFileInput.accept = ".json,application/json";
-    importFileInput.style.display = "none";
-    importFileInput.id = "dmGlobalImportFile";
-    importFileInput.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) handleImportFile(file);
-      importFileInput.value = "";
-    };
-    document.body.appendChild(importFileInput);
-    return importFileInput;
   }
 
   function open() {
@@ -55,8 +38,6 @@ const AppDataManager = (() => {
 
   function createPanel() {
     if (panelEl) return;
-
-    ensureImportFileInput();
 
     overlayEl = document.createElement("div");
     overlayEl.className = "dm-overlay hidden";
@@ -356,6 +337,7 @@ const AppDataManager = (() => {
         </div>
         <div class="dm-action-row">
           <button class="dm-btn dm-btn-primary" data-action="import-all">📥 选择文件导入</button>
+          <input type="file" id="dmImportFile" accept=".json,application/json" style="display:none">
         </div>
       </div>
 
@@ -370,6 +352,15 @@ const AppDataManager = (() => {
     el.querySelectorAll("[data-action]").forEach(btn => {
       btn.onclick = () => handleAction(btn.dataset.action);
     });
+
+    const fileInput = el.querySelector("#dmImportFile");
+    if (fileInput) {
+      fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) handleImportFile(file);
+        fileInput.value = "";
+      };
+    }
   }
 
   function renderDanger() {
@@ -419,7 +410,8 @@ const AppDataManager = (() => {
         handleExportAll();
         break;
       case "import-all":
-        ensureImportFileInput().click();
+        const fileInput = panelEl.querySelector("#dmImportFile");
+        if (fileInput) fileInput.click();
         break;
       case "repair-data":
         handleRepairData();

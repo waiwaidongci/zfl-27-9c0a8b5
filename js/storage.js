@@ -121,7 +121,7 @@ const AppStorage = (() => {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith(OLD_KEYS.TEMP_SAVE_PREFIX) && key !== OLD_KEYS.TEMP_SAVE) {
-        const sig = key.slice(OLD_KEYS.TEMP_SAVE_PREFIX.length);
+        const sig = key.slice(OLD_KEYS.TEMP_SAVE_PREFIX.length + 1);
         const data = safeParse(localStorage.getItem(key), null);
         if (data) saves[sig] = data;
       }
@@ -304,19 +304,14 @@ const AppStorage = (() => {
     }
 
     if (!validateDataStructure(data)) {
-      const repairResult = repairData();
       return {
-        success: repairResult.success,
+        success: false,
         migrated: false,
         fromVersion: data ? data.schemaVersion : null,
         toVersion: SCHEMA_VERSION,
         backupKey: preMigrationBackupKey,
-        repairBackupKey: repairResult.backupKey,
         corrupted: true,
-        repaired: repairResult.success,
-        message: repairResult.success
-          ? "检测到数据损坏，已自动修复。请检查数据完整性。"
-          : "检测到数据损坏，自动修复失败。请尝试从备份恢复或重置数据。"
+        message: "检测到数据损坏，可尝试从备份恢复或重置数据"
       };
     }
 
@@ -427,18 +422,18 @@ const AppStorage = (() => {
 
     if (hasAnyOldData()) {
       const repaired = migrateFromScratch();
-      if (fresh.customPuzzles.length === 0 && repaired.customPuzzles.length > 0) fresh.customPuzzles = repaired.customPuzzles;
-      if (fresh.customThemes.length === 0 && repaired.customThemes.length > 0) fresh.customThemes = repaired.customThemes;
-      if (fresh.library.length === 0 && repaired.library.length > 0) fresh.library = repaired.library;
-      if (Object.keys(fresh.libraryNotes).length === 0 && Object.keys(repaired.libraryNotes).length > 0) fresh.libraryNotes = repaired.libraryNotes;
-      if (fresh.progress.length === 0 && repaired.progress.length > 0) fresh.progress = repaired.progress;
-      if (fresh.daily.records.length === 0 && repaired.daily.records.length > 0) fresh.daily.records = repaired.daily.records;
-      if (!fresh.daily.session && repaired.daily.session) fresh.daily.session = repaired.daily.session;
-      if (Object.keys(fresh.levelSaves).length === 0 && Object.keys(repaired.levelSaves).length > 0) fresh.levelSaves = repaired.levelSaves;
-      if (Object.keys(fresh.tempSaves).length === 0 && Object.keys(repaired.tempSaves).length > 0) fresh.tempSaves = repaired.tempSaves;
-      if (!fresh.ui.tutorialCompleted && repaired.ui.tutorialCompleted) fresh.ui.tutorialCompleted = true;
-      if (fresh.generator.history.length === 0 && repaired.generator.history.length > 0) fresh.generator.history = repaired.generator.history;
-      if (fresh.generator.favorites.length === 0 && repaired.generator.favorites.length > 0) fresh.generator.favorites = repaired.generator.favorites;
+      if (repaired.customPuzzles.length > 0) fresh.customPuzzles = repaired.customPuzzles;
+      if (repaired.customThemes.length > 0) fresh.customThemes = repaired.customThemes;
+      if (repaired.library.length > 0) fresh.library = repaired.library;
+      if (Object.keys(repaired.libraryNotes).length > 0) fresh.libraryNotes = repaired.libraryNotes;
+      if (repaired.progress.length > 0) fresh.progress = repaired.progress;
+      if (repaired.daily.records.length > 0) fresh.daily.records = repaired.daily.records;
+      if (repaired.daily.session) fresh.daily.session = repaired.daily.session;
+      if (Object.keys(repaired.levelSaves).length > 0) fresh.levelSaves = repaired.levelSaves;
+      if (Object.keys(repaired.tempSaves).length > 0) fresh.tempSaves = repaired.tempSaves;
+      if (repaired.ui.tutorialCompleted) fresh.ui.tutorialCompleted = true;
+      if (repaired.generator.history.length > 0) fresh.generator.history = repaired.generator.history;
+      if (repaired.generator.favorites.length > 0) fresh.generator.favorites = repaired.generator.favorites;
     }
 
     fresh.migratedAt = Date.now();
