@@ -22,10 +22,6 @@ const AppGame = (() => {
   let undoBtn = null;
   let redoBtn = null;
 
-  const MAX_HISTORY = 50;
-  let undoStack = [];
-  let redoStack = [];
-
   let currentIndex = 0;
   let currentPuzzle = null;
   let isTempMode = false;
@@ -620,9 +616,7 @@ const AppGame = (() => {
   }
 
   function clearHistory() {
-    undoStack = [];
-    redoStack = [];
-    updateUndoRedoButtons();
+    AppHistoryManager.clear();
   }
 
   function captureHistorySnapshot() {
@@ -736,46 +730,23 @@ const AppGame = (() => {
   }
 
   function pushHistory() {
-    try {
-      const snapshot = captureHistorySnapshot();
-      undoStack.push(snapshot);
-      if (undoStack.length > MAX_HISTORY) {
-        undoStack.shift();
-      }
-      redoStack = [];
-      updateUndoRedoButtons();
-    } catch (e) {}
+    AppHistoryManager.push();
   }
 
   function handleUndo() {
-    if (undoStack.length === 0) return;
+    if (!AppHistoryManager.canUndo()) return;
     if (overlay && !overlay.classList.contains("hidden")) return;
-    const currentSnapshot = captureHistorySnapshot();
-    const prevSnapshot = undoStack.pop();
-    redoStack.push(currentSnapshot);
-    applyHistorySnapshot(prevSnapshot);
-    updateUndoRedoButtons();
+    AppHistoryManager.undo();
   }
 
   function handleRedo() {
-    if (redoStack.length === 0) return;
+    if (!AppHistoryManager.canRedo()) return;
     if (overlay && !overlay.classList.contains("hidden")) return;
-    const currentSnapshot = captureHistorySnapshot();
-    const nextSnapshot = redoStack.pop();
-    undoStack.push(currentSnapshot);
-    applyHistorySnapshot(nextSnapshot);
-    updateUndoRedoButtons();
+    AppHistoryManager.redo();
   }
 
   function updateUndoRedoButtons() {
-    if (undoBtn) {
-      undoBtn.disabled = undoStack.length === 0;
-      undoBtn.classList.toggle("history-disabled", undoStack.length === 0);
-    }
-    if (redoBtn) {
-      redoBtn.disabled = redoStack.length === 0;
-      redoBtn.classList.toggle("history-disabled", redoStack.length === 0);
-    }
+    AppHistoryManager.updateButtons();
   }
 
   function initGameState() {
@@ -1061,10 +1032,7 @@ const AppGame = (() => {
   }
 
   function onToolUsedCancelled() {
-    if (undoStack.length > 0) {
-      undoStack.pop();
-      updateUndoRedoButtons();
-    }
+    AppHistoryManager.popLast();
   }
 
   function onToolUsed(toolId, piece) {
@@ -1381,6 +1349,12 @@ const AppGame = (() => {
     setDependencies(deps);
     cacheElements();
     bindUI();
+    AppHistoryManager.init({
+      captureSnapshot: captureHistorySnapshot,
+      applySnapshot: applyHistorySnapshot,
+      undoBtn,
+      redoBtn
+    });
     AppToolbox.init({ game: { onBeforeToolUsed, onToolUsedCancelled, onToolUsed } });
   }
 
